@@ -1,0 +1,4 @@
+# ไฟล์ลับ — ห้าม push
+secret*.gs
+*.key
+.env

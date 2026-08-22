@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AZ Creator — สั่งสร้างวิดีโอขายสินค้า (TikTok / Facebook)</title>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#171a23; --panel2:#1e2230; --line:#2a2f40;
+    --txt:#e8eaf2; --sub:#9aa3b8; --acc:#7c5cff; --acc2:#ff4d8d;
+    --ok:#2ecc8f; --warn:#ffb020;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; font-family:'Segoe UI','Noto Sans Thai',Tahoma,sans-serif;}
+  body{background:var(--bg); color:var(--txt); min-height:100vh;}
+  .wrap{max-width:1100px; margin:0 auto; padding:24px 16px 60px;}
+
+  /* Header */
+  header{display:flex; align-items:center; gap:14px; margin-bottom:22px;}
+  .logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--acc2));
+        display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;}
+  h1{font-size:20px;} .subtitle{color:var(--sub);font-size:13px;}
+  .head-right{margin-left:auto;display:flex;gap:8px;}
+  .chip{background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:6px 14px;font-size:12px;color:var(--sub);}
+
+  /* Steps nav */
+  .steps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;}
+  .step-pill{flex:1;min-width:120px;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+             padding:10px 12px;font-size:12px;color:var(--sub);display:flex;gap:8px;align-items:center;}
+  .step-pill .n{width:22px;height:22px;border-radius:50%;background:var(--panel2);display:flex;align-items:center;
+               justify-content:center;font-weight:700;font-size:11px;color:var(--sub);flex-shrink:0;}
+  .step-pill.active{border-color:var(--acc);color:var(--txt);}
+  .step-pill.active .n{background:var(--acc);color:#fff;}
+
+  /* Panels */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px;}
+  .panel h2{font-size:15px;margin-bottom:4px;}
+  .panel .desc{color:var(--sub);font-size:12px;margin-bottom:16px;}
+  .grid{display:grid;gap:14px;}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));}
+  label{display:block;font-size:12px;color:var(--sub);margin-bottom:6px;}
+  select,input[type=text],input[type=number],textarea{
+    width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    color:var(--txt);padding:10px 12px;font-size:13px;outline:none;}
+  select:focus,input:focus,textarea:focus{border-color:var(--acc);}
+  textarea{resize:vertical;min-height:70px;}
+
+  .btn{border:none;border-radius:8px;padding:11px 20px;font-size:13px;font-weight:600;cursor:pointer;}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--sub);}
+  .btn-ai{background:linear-gradient(90deg,var(--acc),#5a8bff);color:#fff;}
+  .btn-start{background:linear-gradient(90deg,var(--acc2),#ff7a45);color:#fff;font-size:15px;padding:14px 34px;
+             border-radius:10px;box-shadow:0 6px 20px rgba(255,77,141,.35);}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+
+  /* toggle */
+  .switch{position:relative;width:42px;height:24px;display:inline-block;flex-shrink:0;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;inset:0;background:var(--panel2);border:1px solid var(--line);border-radius:24px;cursor:pointer;transition:.2s;}
+  .slider:before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:var(--sub);border-radius:50%;transition:.2s;}
+  .switch input:checked + .slider{background:var(--acc);border-color:var(--acc);}
+  .switch input:checked + .slider:before{transform:translateX(18px);background:#fff;}
+  .toggle-row{display:flex;align-items:center;gap:10px;padding:10px 0;}
+  .toggle-row .t-label{font-size:13px;}
+  .toggle-row .t-sub{font-size:11px;color:var(--sub);}
+
+  /* AI result cards */
+  .ai-result{border:1px dashed var(--acc);border-radius:10px;padding:14px;background:rgba(124,92,255,.06);}
+  .ai-result .tag{font-size:11px;color:var(--acc);font-weight:700;letter-spacing:.5px;margin-bottom:8px;}
+  .scene{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;}
+  .scene .sc-head{font-size:12px;color:var(--acc2);font-weight:700;margin-bottom:6px;}
+  .scene p{font-size:13px;line-height:1.6;color:var(--txt);}
+  .scene .img-slot{height:90px;border-radius:8px;background:repeating-linear-gradient(45deg,#232839,#232839 10px,#1e2230 10px,#1e2230 20px);
+                   display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:11px;margin-bottom:8px;}
+
+  /* Loop box */
+  .loop-box{border:1px solid var(--warn);border-radius:10px;padding:14px;background:rgba(255,176,32,.05);}
+  .loop-box h3{font-size:13px;color:var(--warn);margin-bottom:8px;}
+
+  /* footer action */
+  .footer-action{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;
+                 background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+
+  /* status timeline */
+  .timeline{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+  .tl-item{font-size:11px;padding:6px 10px;border-radius:16px;background:var(--panel2);color:var(--sub);border:1px solid var(--line);}
+  .tl-item.run{border-color:var(--acc);color:var(--acc);}
+  .tl-item.done{border-color:var(--ok);color:var(--ok);}
+
+  .preview-thumb{width:100%;aspect-ratio:9/16;max-width:120px;border-radius:10px;background:
+    repeating-linear-gradient(45deg,#232839,#232839 10px,#1e2230 10px,#1e2230 20px);
+    display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:10px;text-align:center;padding:6px;}
+  .thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">AZ</div>
+    <div>
+      <h1>Video Creator — สั่งสร้างคลิปขายสินค้า</h1>
+      <div class="subtitle">สร้างวิดีโออัตโนมัติ พร้อมโพสต์ TikTok &amp; Facebook ในคลิกเดียว</div>
+    </div>
+    <div class="head-right">
+      <span class="chip">🟢 TikTok เชื่อมต่อแล้ว</span>
+      <span class="chip">🟢 Facebook เชื่อมต่อแล้ว</span>
+    </div>
+  </header>
+
+  <!-- STEP NAV -->
+  <div class="steps">
+    <div class="step-pill active"><span class="n">1</span> ตั้งค่าซีรีส์</div>
+    <div class="step-pill"><span class="n">2</span> สินค้า + คีย์เวิร์ด</div>
+    <div class="step-pill"><span class="n">3</span> AI สร้างเรื่อง</div>
+    <div class="step-pill"><span class="n">4</span> เสียงบรรยาย</div>
+    <div class="step-pill"><span class="n">5</span> บท + ซีน</div>
+    <div class="step-pill"><span class="n">6</span> ตั้งค่าโพสต์</div>
+    <div class="step-pill"><span class="n">7</span> เริ่มสร้าง</div>
+  </div>
+
+  <!-- STEP 1: SERIES MODE -->
+  <div class="panel" id="panel1">
+    <h2>1️⃣ Series Mode — ตั้งค่ารูปแบบวิดีโอ</h2>
+    <div class="desc">เลือกสไตล์และรูปแบบของคลิปที่ต้องการ</div>
+    <div class="grid g3">
+      <div>
+        <label>สไตล์วิดีโอ</label>
+        <select>
+          <option selected>Pixar Story</option>
+          <option>Realistic Cinematic</option>
+          <option>Anime</option>
+          <option>3D Product Showcase</option>
+          <option>Whiteboard Explainer</option>
+        </select>
+      </div>
+      <div>
+        <label>แนวเรื่อง</label>
+        <select>
+          <option selected>สิ่งของปากแจ๋ว (ของใช้จริง)</option>
+          <option>แก้ปัญหาในชีวิตประจำวัน</option>
+          <option>รีวิวสินค้าก่อน–หลัง</option>
+          <option>เรื่องราวของคนขายสินค้า</option>
+        </select>
+      </div>
+      <div>
+        <label>ความยาวคลิป</label>
+        <select>
+          <option>15 วินาที</option>
+          <option selected>24 วินาที</option>
+          <option>30 วินาที</option>
+          <option>60 วินาที</option>
+        </select>
+      </div>
+      <div>
+        <label>AI ที่ใช้สร้าง</label>
+        <select>
+          <option selected>Gemini</option>
+          <option>GPT</option>
+          <option>Claude</option>
+        </select>
+      </div>
+      <div>
+        <label>แพลตฟอร์มปลายทาง</label>
+        <select>
+          <option selected>TikTok + Facebook</option>
+          <option>TikTok เท่านั้น</option>
+          <option>Facebook เท่านั้น</option>
+        </select>
+      </div>
+      <div>
+        <label>รูปแบบวิดีโอ</label>
+        <select>
+          <option selected>Reels แนวตั้ง 9:16</option>
+          <option>สี่เหลี่ยม 1:1</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: PRODUCT + KEYWORD -->
+  <div class="panel">
+    <h2>2️⃣ ข้อมูลสินค้า &amp; คีย์เวิร์ด</h2>
+    <div class="desc">Context = ปกติ ใส่คีย์เวิร์ดปัญหาที่คนเจอ แล้วให้ AI สร้าง Topic + ตัวละคร + ฉาก ให้ครบ</div>
+    <div class="grid g2">
+      <div>
+        <label>ชื่อสินค้า (ดึงจาก Google Sheet)</label>
+        <select id="productSelect">
+          <option selected>กำลังโหลดรายการสินค้า…</option>
+        </select>
+      </div>
+      <div>
+        <label>คีย์เวิร์ดปัญหาที่คนเจอ</label>
+        <input type="text" id="keyword" value="ห้องน้ำเหม็น" placeholder="เช่น ห้องน้ำเหม็น, ผมมัน, บ้านรก">
+      </div>
+      <div>
+        <label>จุดขายสินค้า (Features)</label>
+        <textarea id="features">ดับกลิ่นได้จริง 100%, สูตรสมุนไพร, พ่นทิ้งไว้กลิ่นหอม 24 ชม., ราคา 199.-</textarea>
+      </div>
+      <div>
+        <label>ลิงก์ร้าน / Affiliate</label>
+        <input type="text" id="affiliateLink" value="https://tiktok.com/shop/freshhome">
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <button class="btn btn-ai" id="btnGenStory">✨ ให้ AI สร้างเรื่อง (Topic + ตัวละคร + ฉาก)</button>
+      <span style="font-size:12px;color:var(--sub);" id="storyStatus">กดใหม่ได้หลายครั้ง จนพอใจ</span>
+    </div>
+  </div>
+
+  <!-- STEP 3: AI STORY RESULT -->
+  <div class="panel">
+    <h2>3️⃣ ผลลัพธ์จาก AI</h2>
+    <div class="desc">ตัวอย่างผลลัพธ์ที่ AI สร้างให้อัตโนมัติ</div>
+    <div class="grid g3">
+      <div class="ai-result">
+        <div class="tag">TOPIC</div>
+        <p style="font-size:13px;line-height:1.6;" id="aiTopic">กดปุ่ม "ให้ AI สร้างเรื่อง" ในขั้นตอนที่ 2</p>
+      </div>
+      <div class="ai-result">
+        <div class="tag">ตัวละคร</div>
+        <p style="font-size:13px;line-height:1.6;" id="aiCharacters">—</p>
+      </div>
+      <div class="ai-result">
+        <div class="tag">ฉาก</div>
+        <p style="font-size:13px;line-height:1.6;" id="aiSetting">—</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4: VOICE -->
+  <div class="panel">
+    <h2>4️⃣ ตั้งค่าเสียงบรรยาย</h2>
+    <div class="grid g3" style="margin-top:10px;">
+      <div>
+        <label>เลือกเสียง</label>
+        <select><option selected>ผู้ชาย</option><option>ผู้หญิง</option></select>
+      </div>
+      <div>
+        <label>โทนเสียง</label>
+        <select><option selected>หยาบดิบ</option><option>สนุกสนาน</option><option>อบอุ่น</option><option>รอบคอบน่าเชื่อถือ</option></select>
+      </div>
+      <div>
+        <label>ความยาวบทพูด</label>
+        <select><option>สั้น</option><option selected>กลาง</option><option>ยาว</option></select>
+      </div>
+      <div>
+        <label>โครงสร้างบท</label>
+        <select><option selected>Auto</option><option>Problem → Solution → CTA</option><option>Hook 3 วิแรก</option></select>
+      </div>
+      <div>
+        <label>ภาษา</label>
+        <select><option selected>ภาษาไทย (ถิ่นกลาง)</option><option>ภาษาไทย (เหนือ/อีสาน/ใต้)</option></select>
+      </div>
+      <div>
+        <label>เพลงประกอบ</label>
+        <select><option selected>Trending TikTok</option><option>No Copyright</option><option>ไม่ใส่เพลง</option></select>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <button class="btn btn-ai" id="btnGenScript">📝 สร้างบท</button>
+      <button class="btn btn-ghost" id="btnRegenScript">🔁 สร้างบทใหม่อีกครั้ง</button>
+      <span style="font-size:12px;color:var(--sub);" id="scriptStatus">รอสักครู่ จะได้บทครบทั้ง 3 ซีน</span>
+    </div>
+  </div>
+
+  <!-- STEP 5: SCRIPT -->
+  <div class="panel">
+    <h2>5️⃣ บทพูด &amp; ซีน (3 ซีน)</h2>
+    <div class="desc">แก้ไขบทพูดแต่ละซีนได้ก่อนสร้างวิดีโอจริง</div>
+
+    <div class="scene">
+      <div class="sc-head">SCENE 1 — Hook (0–6 วิ)</div>
+      <div class="img-slot" id="sc1img">🖼️ ภาพที่ AI สร้าง: —</div>
+      <p id="sc1text">กดปุ่ม "สร้างบท" เพื่อให้ AI เขียนบทแต่ละซีน</p>
+    </div>
+    <div class="scene">
+      <div class="sc-head">SCENE 2 — Solution (6–18 วิ)</div>
+      <div class="img-slot" id="sc2img">🖼️ ภาพที่ AI สร้าง: —</div>
+      <p id="sc2text">—</p>
+    </div>
+    <div class="scene">
+      <div class="sc-head">SCENE 3 — CTA (18–24 วิ)</div>
+      <div class="img-slot" id="sc3img">🖼️ ภาพที่ AI สร้าง: —</div>
+      <p id="sc3text">—</p>
+    </div>
+
+    <div class="thumbs">
+      <div class="preview-thumb">พรีวิว<br>วิดีโอ 9:16</div>
+      <div class="preview-thumb">พรีวิว<br>วิดีโอ 9:16</div>
+      <div class="preview-thumb">พรีวิว<br>วิดีโอ 9:16</div>
+    </div>
+  </div>
+
+  <!-- STEP 6: POST SETTINGS -->
+  <div class="panel">
+    <h2>6️⃣ ตั้งค่าโพสต์ TikTok &amp; Facebook</h2>
+    <div class="grid g2" style="margin-top:10px;">
+      <div>
+        <label>แคปชัน (AI สร้างให้ แก้ได้)</label>
+        <textarea id="caption">ห้องน้ำเหม็นต้องดู! 🚽✨ ตัวช่วยคุณป้าทุกบ้าน #ของมันต้องมี #ห้องน้ำหอม #TikTokชวนซื้อ</textarea>
+      </div>
+      <div>
+        <label>แฮชแท็ก</label>
+        <input type="text" id="hashtags" value="#ของมันต้องมี #ห้องน้ำหอม #ครัวล้างป้า #ขายของออนไลน์">
+        <label style="margin-top:12px;">เวลาโพสต์</label>
+        <select>
+          <option selected>โพสต์ทันทีเมื่อสร้างเสร็จ</option>
+          <option>ตั้งเวลาล่วงหน้า (Schedule)</option>
+        </select>
+      </div>
+    </div>
+    <div class="toggle-row">
+      <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+      <div><div class="t-label">โพสต์ลง TikTok</div><div class="t-sub">@grow.shop — บัญชีร้านค้า</div></div>
+    </div>
+    <div class="toggle-row">
+      <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+      <div><div class="t-label">โพสต์ลง Facebook Reels</div><div class="t-sub">Fanpage: Fresh Home Thailand</div></div>
+    </div>
+    <div class="toggle-row">
+      <label class="switch"><input type="checkbox" id="approvalToggle"><span class="slider"></span></label>
+      <div><div class="t-label">ส่งเข้า LINE ให้แอดมินอนุมัติก่อนโพสต์</div><div class="t-sub">เชื่อมต่อกับระบบ GAS + LINE ที่มีอยู่</div></div>
+    </div>
+  </div>
+
+  <!-- STEP 7: LOOP -->
+  <div class="panel">
+    <h2>🔁 โหมด Loop — สร้างคลิปต่อเนื่องอัตโนมัติ</h2>
+    <div class="desc">ล็อกคีย์เวิร์ดเดิม แต่ให้ AI เจนคลิปใหม่ทุกรอบ ไม่ซ้ำกัน พร้อมโพสต์ล่วงหน้าหลายวัน</div>
+    <div class="loop-box">
+      <div class="toggle-row" style="padding-top:0;">
+        <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+        <div><div class="t-label">เปิด Loop</div><div class="t-sub">คีย์เวิร์ดคงเดิม: ห้องน้ำเหม็น</div></div>
+      </div>
+      <div class="grid g3">
+        <div>
+          <label>จำนวน Loop</label>
+          <input type="number" id="loopCount" value="10">
+        </div>
+        <div>
+          <label>ความถี่โพสต์</label>
+          <select><option>ทุก 6 ชม.</option><option selected>วันละ 2 คลิป</option><option>วันละ 1 คลิป</option></select>
+        </div>
+        <div>
+          <label>ช่วงเวลาโพสต์</label>
+          <select><option selected>11:00 &amp; 19:00</option><option>09:00 &amp; 20:00</option><option>กำหนดเอง</option></select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTION -->
+  <div class="footer-action">
+    <div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px;">สถานะงานปัจจุบัน</div>
+      <div class="timeline">
+        <span class="tl-item done">✓ ตั้งค่าซีรีส์</span>
+        <span class="tl-item done">✓ AI สร้างเรื่อง</span>
+        <span class="tl-item done">✓ สร้างบท 3 ซีน</span>
+        <span class="tl-item run">⏳ สร้างภาพทุกซีน…</span>
+        <span class="tl-item">สร้างวิดีโอ</span>
+        <span class="tl-item">เสียงบรรยาย</span>
+        <span class="tl-item">โพสต์ TikTok</span>
+        <span class="tl-item">โพสต์ Facebook</span>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn btn-ghost">💾 บันทึกแบบร่าง</button>
+      <button class="btn btn-start" id="btnStart">🚀 เริ่มสร้าง</button>
+    </div>
+  </div>
+
+  <div style="text-align:center;color:var(--sub);font-size:11px;margin-top:18px;">
+    AZ Creator UI Prototype — เชื่อมต่อกับระบบ Google Apps Script + Gemini + TikTok/Facebook API
+  </div>
+
+</div>
+
+<script>
+// ===== เชื่อมต่อ Google Apps Script (google.script.run) =====
+// เมื่อเปิดเป็นไฟล์ HTML ธรรมดา (ไม่ได้ deploy บน GAS) จะทำงานในโหมดตัวอย่าง (Demo)
+const IS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
+let currentStory = null;
+
+// ---- โหลดสินค้าจาก Sheet ----
+function loadProducts() {
+  const sel = document.getElementById('productSelect');
+  if (!IS_GAS) {
+    sel.innerHTML = '<option>P001 — สเปรย์ดับกลิ่นห้องน้ำ "Fresh Home" (Demo)</option>';
+    return;
+  }
+  google.script.run
+    .withSuccessHandler(res => {
+      if (!res.products.length) { sel.innerHTML = '<option>— ไม่พบสินค้าใน Sheet —</option>'; return; }
+      sel.innerHTML = res.products.map(p =>
+        `<option value='${JSON.stringify(p).replace(/'/g,"&#39;")}'>${p.productId} — ${p.productName}</option>`).join('');
+      sel.dispatchEvent(new Event('change'));
+    })
+    .withFailureHandler(err => sel.innerHTML = '<option>❌ ' + err.message + '</option>')
+    .getProducts();
+}
+
+// เลือกสินค้า → เติมจุดขาย+ลิงก์อัตโนมัติ
+document.getElementById('productSelect').addEventListener('change', e => {
+  try {
+    const p = JSON.parse(e.target.value);
+    if (p.features) document.getElementById('features').value = p.features;
+    if (p.affiliateLink) document.getElementById('affiliateLink').value = p.affiliateLink;
+  } catch (_) {}
+});
+
+// ---- รวบรวมค่าจากฟอร์ม ----
+function collectPayload() {
+  const sel = document.getElementById('productSelect');
+  const p1 = document.querySelectorAll('#panel1 select');
+  let product = {};
+  try { product = JSON.parse(sel.value) || {}; } catch (_) {}
+  return {
+    productId: product.productId || '', productName: product.productName || sel.value,
+    features: document.getElementById('features').value,
+    affiliateLink: document.getElementById('affiliateLink').value,
+    keyword: document.getElementById('keyword').value,
+    style: p1[0] ? p1[0].value : 'Pixar Story',
+    theme: p1[1] ? p1[1].value : '',
+    duration: p1[2] ? p1[2].value : '24 วินาที',
+    voiceGender: 'ผู้ชาย', voiceTone: 'หยาบดิบ', scriptLength: 'กลาง'
+  };
+}
+
+// ---- ปุ่ม AI สร้างเรื่อง + สร้างบท ----
+async function generateStory() {
+  const status = document.getElementById('storyStatus');
+  const payload = collectPayload();
+
+  if (!IS_GAS) { demoStory(); return; }
+
+  status.textContent = '⏳ AI กำลังคิดเรื่อง…';
+  google.script.run
+    .withSuccessHandler(res => { currentStory = res.story; renderStory(res.story); status.textContent = '✅ ได้เรื่องแล้ว — กดใหม่ได้อีกถ้ายังไม่พอใจ'; })
+    .withFailureHandler(err => status.textContent = '❌ ' + err.message)
+    .generateStory(payload);
+}
+
+function renderStory(s) {
+  document.getElementById('aiTopic').textContent = s.topic || '—';
+  document.getElementById('aiCharacters').textContent = s.characters || '—';
+  document.getElementById('aiSetting').textContent = s.setting || '—';
+  (s.scenes || []).forEach((sc, i) => {
+    const n = i + 1;
+    document.getElementById('sc' + n + 'img').textContent = '🖼️ ภาพที่ AI สร้าง: ' + (sc.image || '—');
+    document.getElementById('sc' + n + 'text').textContent = sc.script || '—';
+  });
+  if (s.caption) document.getElementById('caption').value = s.caption;
+  if (s.hashtags) document.getElementById('hashtags').value = s.hashtags;
+}
+
+// ข้อมูลตัวอย่างเมื่อเปิดไฟล์เดี่ยว (ไม่มี backend)
+function demoStory() {
+  renderStory({
+    topic: '"ห้องน้ำเหม็นจนแขกไม่กล้าเข้า?! ใช้สเปรย์ตัวนี้แล้วเหมือนโรงแรม 5 ดาว" (Demo)',
+    characters: 'คุณป้าแม่บ้านใจดี อายุ 45 (Demo)',
+    setting: 'บ้านสไตล์ไทย → ห้องน้ำหรูแบบโรงแรม (Demo)',
+    scenes: [
+      { title:'Hook', image:'ป้าเครียด แขกเดินหนีห้องน้ำ', script:'"ห้องน้ำบ้านคุณเหม็นแบบนี้ แขกมาปุ๊บเดินหนีปั๊บเลยหรอ?"' },
+      { title:'Solution', image:'ฉีดสเปรย์ Fresh Home กลิ่นหอมฟุ้ง', script:'"สูตรสมุนไพร พ่นครั้งเดียว ดับกลิ่นได้จริง 24 ชม."' },
+      { title:'CTA', image:'ห้องน้ำสะอาด + ราคาสินค้า', script:'"หอมแบบโรงแรม 199.- กดตะกร้าเลย!"' }
+    ],
+    caption: 'ห้องน้ำเหม็นต้องดู! 🚽✨ #ของมันต้องมี (Demo)',
+    hashtags: '#ของมันต้องมี #ห้องน้ำหอม #ขายของออนไลน์'
+  });
+  document.getElementById('storyStatus').textContent = '(โหมดตัวอย่าง — Deploy เป็น Web App เพื่อใช้ AI จริง)';
+}
+
+document.getElementById('btnGenStory').addEventListener('click', generateStory);
+document.getElementById('btnGenScript').addEventListener('click', generateStory);
+document.getElementById('btnRegenScript').addEventListener('click', generateStory);
+
+// ---- ปุ่มเริ่มสร้าง: บันทึกงานลง Google Sheet ----
+document.getElementById('btnStart').addEventListener('click', () => {
+  const payload = Object.assign(collectPayload(), {
+    platforms: 'TikTok,Facebook',
+    caption: document.getElementById('caption').value,
+    loopCount: Number(document.getElementById('loopCount').value) || 1,
+    requireApproval: document.getElementById('approvalToggle').checked,
+    topic: currentStory ? currentStory.topic : ''
+  });
+
+  if (!IS_GAS) {
+    alert('โหมดตัวอย่าง: ยังไม่ได้เชื่อม backend\n\nDeploy เป็น GAS Web App ก่อน แล้วปุ่มนี้จะบันทึกงานลง Google Sheet และส่ง LINE แจ้งอนุมัติให้อัตโนมัติ');
+    return;
+  }
+  if (!confirm('ยืนยันเริ่มสร้างวิดีโอ?')) return;
+
+  google.script.run
+    .withSuccessHandler(res => alert('🚀 สร้างงานเรียบร้อย! (แถวที่ ' + res.row + ' ใน Sheet)\nระบบจะดำเนินการสร้างและโพสต์ตามคิว'))
+    .withFailureHandler(err => alert('❌ ผิดพลาด: ' + err.message))
+    .createVideoJob(payload);
+});
+
+loadProducts();
+</script>
+</body>
+</html>
