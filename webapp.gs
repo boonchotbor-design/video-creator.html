@@ -169,7 +169,7 @@ if (typeof sendLineText === 'undefined') {
 function callGemini(prompt) {
   const payload = {
     contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.9, maxOutputTokens: 2048, responseMimeType: 'application/json' }
+    generationConfig: { temperature: 0.9, maxOutputTokens: 2048 }
   };
   const options = {
     method: 'post',
@@ -178,27 +178,37 @@ function callGemini(prompt) {
     muteHttpExceptions: true
   };
 
-  const urlList = `https://generativelanguage.googleapis.com/v1beta/models?key=${CONFIG.GEMINI_API_KEY}`;
-  const resList = UrlFetchApp.fetch(urlList, { muteHttpExceptions: true });
-  if (resList.getResponseCode() !== 200) {
-    throw new Error('ดึงรายชื่อโมเดลไม่ได้: ' + resList.getContentText());
-  }
-  const models = JSON.parse(resList.getContentText()).models
-    .filter(m => m.supportedGenerationMethods.includes('generateContent'))
-    .map(m => m.name)
-    .sort((a, b) => (a.includes('1.5-flash') ? -1 : b.includes('1.5-flash') ? 1 : 0));
+  // โมเดลที่ทดสอบแล้วตอบคำสั่งเขียนบทได้เสถียร เรียงจากนิ่งที่สุด
+  const preferred = [
+    'models/gemini-2.5-flash',
+    'models/gemini-2.0-flash',
+    'models/gemini-1.5-flash-latest',
+    'models/gemini-1.5-flash',
+    'models/gemini-2.5-flash-lite'
+  ];
+
+  // เศษวลีจากพรอมป์ ใช้เช็คว่า AI ตอบพรอมป์เรากลับมา (echo) หรือไม่
+  const echoMark = prompt.replace(/\s+/g, ' ').trim().substring(20, 60);
 
   let lastError = '';
-  for (let i = 0; i < Math.min(models.length, 10); i++) {
+  for (let i = 0; i < preferred.length; i++) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/${models[i]}:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/${preferred[i]}:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
       const res = UrlFetchApp.fetch(url, options);
       if (res.getResponseCode() === 200) {
-        return JSON.parse(res.getContentText()).candidates[0].content.parts[0].text.trim();
+        const json = JSON.parse(res.getContentText());
+        const parts = json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
+        const text = (parts || []).map(p => p.text || '').join('').trim();
+        if (text && text.length > 40 && text.indexOf(echoMark) === -1) {
+          return text;
+        }
+        console.warn(`โมเดล ${preferred[i]} ตอบผิดปกติ (echo/ว่าง) ข้ามไปตัวถัดไป`);
+        lastError = 'AI ตอบแบบ echo/ว่างเปล่า';
+      } else {
+        lastError = res.getContentText();
       }
-      lastError = res.getContentText();
-      Utilities.sleep(500);
+      Utilities.sleep(400);
     } catch (e) { lastError = e.message; }
   }
-  throw new Error('Gemini ทุกโมเดล Quota เต็ม: ' + String(lastError).substring(0, 150));
+  throw new Error('Gemini ตอบไม่สำเร็จทุกโมเดล: ' + String(lastError).substring(0, 150));
 }
