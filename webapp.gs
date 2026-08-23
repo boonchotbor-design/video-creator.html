@@ -145,26 +145,39 @@ function createVideoJob(payload) {
 }
 
 // ── ตัวช่วยเรียก Gemini (ใช้ Smart Quota เหมือน ai_handler) ──
-// ── แจ้งเตือนแอดมิน: Telegram (มีปุ่มอนุมัติ/ยกเลิกได้) + LINE ──
-function notifyAdmin(msg, approveRow) {
-  // --- Telegram (พร้อมปุ่มกดถ้าระบุ approveRow) ---
+// ── แจ้งเตือนแอดมิน: Telegram (แนบวีดีโอ/รูป + ปุ่มอนุมัติ) + LINE ──
+function notifyAdmin(msg, approveRow, mediaUrl) {
+  // --- Telegram ---
   const tgToken = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
   const tgChat = PropertiesService.getScriptProperties().getProperty('TELEGRAM_CHAT_ID');
   if (tgToken && tgChat) {
     try {
-      const payload = { chat_id: tgChat, text: msg };
-      if (approveRow) {
-        payload.reply_markup = { inline_keyboard: [[
-          { text: '✅ อนุมัติโพสต์', callback_data: 'approve:' + approveRow },
-          { text: '❌ ยกเลิก', callback_data: 'reject:' + approveRow }
-        ]] };
+      const buttons = approveRow ? { inline_keyboard: [[
+        { text: '✅ อนุมัติโพสต์', callback_data: 'approve:' + approveRow },
+        { text: '❌ ยกเลิก', callback_data: 'reject:' + approveRow }
+      ]] } : null;
+
+      const url = (mediaUrl || '').trim();
+      const isPhoto = /\.(jpe?g|png|webp)(\?|$)/i.test(url);
+      if (url) {
+        // แนบไฟล์จริง: รูป → sendPhoto, อื่นๆ → sendVideo พร้อม caption + ปุ่ม
+        const method = isPhoto ? 'sendPhoto' : 'sendVideo';
+        const payload = { chat_id: tgChat, caption: msg.substring(0, 1000) };
+        payload[isPhoto ? 'photo' : 'video'] = url;
+        if (buttons) payload.reply_markup = buttons;
+        UrlFetchApp.fetch('https://api.telegram.org/bot' + tgToken + '/' + method, {
+          method: 'post', contentType: 'application/json',
+          payload: JSON.stringify(payload), muteHttpExceptions: true
+        });
+      } else {
+        // ไม่มีไฟล์จริง → ส่งข้อความ + ปุ่ม
+        const payload = { chat_id: tgChat, text: msg };
+        if (buttons) payload.reply_markup = buttons;
+        UrlFetchApp.fetch('https://api.telegram.org/bot' + tgToken + '/sendMessage', {
+          method: 'post', contentType: 'application/json',
+          payload: JSON.stringify(payload), muteHttpExceptions: true
+        });
       }
-      UrlFetchApp.fetch('https://api.telegram.org/bot' + tgToken + '/sendMessage', {
-        method: 'post',
-        contentType: 'application/json',
-        payload: JSON.stringify(payload),
-        muteHttpExceptions: true
-      });
     } catch (e) { console.error('Telegram send failed: ' + e.message); }
   } else {
     console.warn('ยังไม่ได้ตั้งค่า TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID ใน Script Properties');
@@ -186,15 +199,17 @@ function notifyAdmin(msg, approveRow) {
   }
 }
 
-// ส่งตัวเลขแถวที่สร้าง พร้อมแจ้งเตือนทุกครั้งที่มีงานใหม่ (มีปุ่มอนุมัติเสมอ)
+// ส่งตัวเลขแถวที่สร้าง พร้อมแจ้งเตือนทุกครั้งที่มีงานใหม่ (แนบวีดีโอ/ปุ่มอนุมัติ)
 function notifyNewJob(p, rowNum) {
   const needApproval = p.requireApproval !== false; // เริ่มต้น = รออนุมัติเสมอ
   const msg = '🎬 มีคลิปใหม่รออนุมัติ' +
     '\n📦 ' + (p.productName || '') +
     '\n🔑 คีย์เวิร์ด: ' + (p.keyword || '') +
     '\n📊 สถานะ: ' + (needApproval ? 'PENDING_REVIEW (รออนุมัติ)' : 'PENDING (รอโพสต์อัตโนมัติ)') +
-    '\n📄 แถวที่: ' + rowNum;
-  notifyAdmin(msg, needApproval ? rowNum : null);
+    '\n📄 แถวที่: ' + rowNum +
+    (p.mediaUrl ? '' : '\n🎥 (แนบวีดีโอตัวอย่าง — ยังไม่มีไฟล์จริง)');
+  // ถ้าไม่มีไฟล์จริง ใช้วีดีโอตัวอย่างแนบไปก่อน
+  notifyAdmin(msg, needApproval ? rowNum : null, p.mediaUrl || 'https://www.w3schools.com/html/mov_bbb.mp4');
 }
 
 function callGemini(prompt) {
