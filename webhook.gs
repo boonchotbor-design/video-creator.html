@@ -40,7 +40,7 @@ function startDemo() {
   const row = sheet.getLastRow()+1;
   sheet.getRange(row, 1, 1, 7).setValues([data]);
   sheet.getRange(row, 12).setValue('PENDING');
-  sendLineText('🚀 กำลังสร้างโพสต์รูปภาพตัวอย่าง...');
+  notifyAdmin('🚀 กำลังสร้างโพสต์รูปภาพตัวอย่าง...');
   processAllPending();
 }
 
@@ -51,7 +51,7 @@ function startReelDemo() {
   const row = sheet.getLastRow()+1;
   sheet.getRange(row, 1, 1, 7).setValues([data]);
   sheet.getRange(row, 12).setValue('PENDING');
-  sendLineText('🚀 กำลังสร้างคลิป Reels ทดสอบ...');
+  notifyAdmin('🚀 กำลังสร้างคลิป Reels ทดสอบ...');
   processAllPending();
 }
 
@@ -136,22 +136,22 @@ function editTelegramMessage(tgToken, msg, newText) {
 function handleApproveCommand(action, rowNum) {
   const sheet = getSheet();
   if (rowNum < 2 || rowNum > sheet.getLastRow()) {
-    sendLineText('❌ ไม่พบแถวที่ ' + rowNum + ' ใน Sheet');
+    notifyAdmin('❌ ไม่พบแถวที่ ' + rowNum + ' ใน Sheet');
     return;
   }
   const status = sheet.getRange(rowNum, 12).getValue();
   const productName = sheet.getRange(rowNum, 2).getValue();
   if (action === 'approve' || action === 'อนุมัติ') {
     if (status !== 'PENDING_REVIEW') {
-      sendLineText('⚠️ แถวที่ ' + rowNum + ' สถานะเป็น ' + status + ' (ไม่ใช่ PENDING_REVIEW) อนุมัติไม่ได้');
+      notifyAdmin('⚠️ แถวที่ ' + rowNum + ' สถานะเป็น ' + status + ' (ไม่ใช่ PENDING_REVIEW) อนุมัติไม่ได้');
       return;
     }
     sheet.getRange(rowNum, 12).setValue('APPROVED');
-    sendLineText('✅ อนุมัติแล้ว: ' + productName + ' — เริ่มโพสต์เลย!');
+    notifyAdmin('✅ อนุมัติแล้ว: ' + productName + ' — เริ่มโพสต์เลย!');
     postApprovedProduct(rowNum);
   } else {
     sheet.getRange(rowNum, 12).setValue('REJECTED');
-    sendLineText('🚫 ยกเลิกแล้ว: ' + productName);
+    notifyAdmin('🚫 ยกเลิกแล้ว: ' + productName);
   }
 }
 
@@ -165,7 +165,7 @@ function handlePostback(event) {
     postApprovedProduct(rowNum);
   } else {
     getSheet().getRange(rowNum, 12).setValue('REJECTED');
-    sendLineText('🚫 Rejected แล้ว');
+    notifyAdmin('🚫 Rejected แล้ว');
   }
 }
 
@@ -184,10 +184,10 @@ function parseQueryString(str) {
 function sendStatusSummary() {
   const sheet = getSheet();
   const lastRow = sheet.getLastRow();
-  if (lastRow < 2) { sendLineText('ไม่มีข้อมูลครับ'); return; }
+  if (lastRow < 2) { notifyAdmin('ไม่มีข้อมูลครับ'); return; }
   const stats = sheet.getRange(2, 12, lastRow-1, 1).getValues();
   const counts = { PENDING:0, AI_DONE:0, PENDING_REVIEW:0, APPROVED:0, REJECTED:0, POSTED:0, ERROR:0 };
   stats.forEach(s => { if (counts[s[0]] !== undefined) counts[s[0]]++; });
   const msg = `📊 สรุปสถานะ\n⏳ PENDING: ${counts.PENDING}\n🚀 Posted: ${counts.POSTED}\n❌ Rejected: ${counts.REJECTED}\n🔴 Error: ${counts.ERROR}`;
-  sendLineText(msg);
+  notifyAdmin(msg);
 }

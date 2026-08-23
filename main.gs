@@ -36,7 +36,7 @@ function promptForToken() {
           // บันทึกลงระบบ Google Properties ทันที (รหัสไม่เพี้ยน)
           PropertiesService.getScriptProperties().setProperty('FB_PAGE_TOKEN', cleanToken);
           ui.alert('✅ สำเร็จ! บันทึกรหัสถาวรเรียบร้อยแล้วครับ ลุยต่อได้เลย!');
-          sendLineText('🤖 ระบบบันทึก Page Token ถาวรสำเร็จ! พร้อมโพสต์ครับ');
+          notifyAdmin('🤖 ระบบบันทึก Page Token ถาวรสำเร็จ! พร้อมโพสต์ครับ');
           found = true;
         }
       });
@@ -68,10 +68,10 @@ function postApprovedProduct(rowNum) {
     sheet.getRange(rowNum, 16).setValue(new Date().toISOString()); 
     sheet.getRange(rowNum, 12).setValue('POSTED');
     
-    sendLineText(`✅ โพสต์สำเร็จ!\n📦 ${productName}\n🎬 ประเภท: ${mType}\n📘 FB: fb.com/${fbId}`);
+    notifyAdmin(`✅ โพสต์สำเร็จ!\n📦 ${productName}\n🎬 ประเภท: ${mType}\n📘 FB: fb.com/${fbId}`);
   } catch (e) {
     logError(rowNum, e.message);
-    sendLineText(`❌ โพสต์ไม่สำเร็จ: ${e.message}`);
+    notifyAdmin(`❌ โพสต์ไม่สำเร็จ: ${e.message}`);
   }
 }
 
@@ -80,6 +80,6 @@ function runEvery6Hours() { processAllPending(); }
 function testSystem() { 
   try {
     const cap = generateCaption('สินค้าทดสอบ', 'ดีมาก', 'https://test.com');
-    sendLineText(`🧪 Gemini OK! ✅\n\nตัวอย่างแคปชัน:\n${cap.substring(0, 100)}...`);
-  } catch (e) { sendLineText('❌ Gemini Failed: ' + e.message); }
+    notifyAdmin(`🧪 Gemini OK! ✅\n\nตัวอย่างแคปชัน:\n${cap.substring(0, 100)}...`);
+  } catch (e) { notifyAdmin('❌ Gemini Failed: ' + e.message); }
 }
