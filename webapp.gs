@@ -150,20 +150,39 @@ function createVideoJob(payload) {
 }
 
 // ── ตัวช่วยเรียก Gemini (ใช้ Smart Quota เหมือน ai_handler) ──
+// ── แจ้งเตือนแอดมิน: ส่งทั้ง LINE และ Telegram (ตัวไหนตั้งค่าไว้ตัวนั้นทำงาน) ──
 if (typeof sendLineText === 'undefined') {
   globalThis.sendLineText = function (msg) {
+    // --- LINE ---
     const token = PropertiesService.getScriptProperties().getProperty('LINE_CHANNEL_TOKEN');
-    if (!token) return; // ยังไม่ใส่ LINE token = ข้ามการแจ้งเตือนเงียบๆ
-    UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
-      method: 'post',
-      contentType: 'application/json',
-      headers: { Authorization: 'Bearer ' + token },
-      payload: JSON.stringify({
-        to: PropertiesService.getScriptProperties().getProperty('LINE_USER_ID'),
-        messages: [{ type: 'text', text: msg }]
-      }),
-      muteHttpExceptions: true
-    });
+    const userId = PropertiesService.getScriptProperties().getProperty('LINE_USER_ID');
+    if (token && userId) {
+      try {
+        UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+          method: 'post',
+          contentType: 'application/json',
+          headers: { Authorization: 'Bearer ' + token },
+          payload: JSON.stringify({ to: userId, messages: [{ type: 'text', text: msg }] }),
+          muteHttpExceptions: true
+        });
+      } catch (e) { console.error('LINE push failed: ' + e.message); }
+    } else {
+      console.warn('ยังไม่ได้ตั้งค่า LINE_CHANNEL_TOKEN / LINE_USER_ID ใน Script Properties — ข้ามการแจ้งเตือน LINE');
+    }
+
+    // --- Telegram ---
+    const tgToken = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
+    const tgChat = PropertiesService.getScriptProperties().getProperty('TELEGRAM_CHAT_ID');
+    if (tgToken && tgChat) {
+      try {
+        UrlFetchApp.fetch('https://api.telegram.org/bot' + tgToken + '/sendMessage', {
+          method: 'post',
+          contentType: 'application/json',
+          payload: JSON.stringify({ chat_id: tgChat, text: msg }),
+          muteHttpExceptions: true
+        });
+      } catch (e) { console.error('Telegram send failed: ' + e.message); }
+    }
   };
 }
 
