@@ -132,9 +132,7 @@ function createVideoJob(payload) {
   );
   sheet.getRange(rowNum, CONFIG.COL.AI_CAPTION).setValue(p.caption || '');
   sheet.getRange(rowNum, CONFIG.COL.AI_GENERATED_AT).setValue(now);
-  sheet.getRange(rowNum, CONFIG.COL.STATUS).setValue(
-    p.requireApproval === false ? CONFIG.STATUS.PENDING : CONFIG.STATUS.PENDING_REVIEW
-  );
+  sheet.getRange(rowNum, CONFIG.COL.STATUS).setValue(CONFIG.STATUS.PENDING_REVIEW);
 
   // แจ้งเตือนทุกงานที่สร้างใหม่เสมอ (ถ้ารออนุมัติจะมีปุ่มกดใน Telegram)
   try {
@@ -199,17 +197,16 @@ function notifyAdmin(msg, approveRow, mediaUrl) {
   }
 }
 
-// ส่งตัวเลขแถวที่สร้าง พร้อมแจ้งเตือนทุกครั้งที่มีงานใหม่ (แนบวีดีโอ/ปุ่มอนุมัติ)
+// ส่งตัวเลขแถวที่สร้าง พร้อมแจ้งเตือนทุกครั้งที่มีงานใหม่ (แนบวีดีโอ + ปุ่มอนุมัติเสมอ)
 function notifyNewJob(p, rowNum) {
-  const needApproval = p.requireApproval !== false; // เริ่มต้น = รออนุมัติเสมอ
   const msg = '🎬 มีคลิปใหม่รออนุมัติ' +
     '\n📦 ' + (p.productName || '') +
     '\n🔑 คีย์เวิร์ด: ' + (p.keyword || '') +
-    '\n📊 สถานะ: ' + (needApproval ? 'PENDING_REVIEW (รออนุมัติ)' : 'PENDING (รอโพสต์อัตโนมัติ)') +
+    '\n📊 สถานะ: PENDING_REVIEW (รออนุมัติ)' +
     '\n📄 แถวที่: ' + rowNum +
     (p.mediaUrl ? '' : '\n🎥 (แนบวีดีโอตัวอย่าง — ยังไม่มีไฟล์จริง)');
-  // ถ้าไม่มีไฟล์จริง ใช้วีดีโอตัวอย่างแนบไปก่อน
-  notifyAdmin(msg, needApproval ? rowNum : null, p.mediaUrl || 'https://www.w3schools.com/html/mov_bbb.mp4');
+  // ถ้าไม่มีไฟล์จริง ใช้วีดีโอตัวอย่างแนบไปก่อน / ปุ่มอนุมัติส่งเสมอ
+  notifyAdmin(msg, rowNum, p.mediaUrl || 'https://www.w3schools.com/html/mov_bbb.mp4');
 }
 
 function callGemini(prompt) {
