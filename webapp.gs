@@ -1,7 +1,31 @@
 // ============================================================
 // webapp.gs — Video Creator Web App (UI สั่งสร้างวิดีโอขายสินค้า)
-// Deploy: Extensions > Apps Script > Deploy > Web app
+// ไฟล์นี้ทำงานได้แบบสแตนด์อโลน: ถ้าไม่มี config.gs ก็จะสร้างค่าเอง
 // ============================================================
+
+// ---- กันไฟล์ขาด: ถ้า config.gs ไม่มีในโปรเจกต์ ให้ใช้ค่าเริ่มต้นตรงนี้ ----
+if (typeof CONFIG === 'undefined') {
+  globalThis.CONFIG = {
+    SHEET_ID: '15tjRtRJRx7owdZf6yEwRUiOIQWUnCkt0vd7BHjWR2i4',
+    SHEET_NAME: 'Control',
+    GEMINI_API_KEY: (PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY') || ''),
+    COL: {
+      PRODUCT_ID: 1, PRODUCT_NAME: 2, KEY_FEATURES: 3, MEDIA_URL: 4, MEDIA_TYPE: 5,
+      AFFILIATE_LINK: 6, TARGET_PLATFORM: 7, SCHEDULED_DATE: 8, EXTRA_NOTES: 9,
+      AI_CAPTION: 10, AI_GENERATED_AT: 11, STATUS: 12, LINE_MSG_ID: 13,
+      FB_POST_ID: 14, POSTED_AT: 16, ERROR_LOG: 17
+    },
+    STATUS: {
+      PENDING: 'PENDING', AI_DONE: 'AI_DONE', PENDING_REVIEW: 'PENDING_REVIEW',
+      APPROVED: 'APPROVED', REJECTED: 'REJECTED', POSTED: 'POSTED', ERROR: 'ERROR'
+    }
+  };
+}
+if (typeof getSheet === 'undefined') {
+  globalThis.getSheet = function () {
+    return SpreadsheetApp.openById(CONFIG.SHEET_ID).getSheetByName(CONFIG.SHEET_NAME);
+  };
+}
 
 /**
  * จุดเข้าหน้าเว็บ — คัดลอกไฟล์ ui/video-creator.html ไปเป็นไฟล์ HTML
@@ -112,6 +136,23 @@ function createVideoJob(payload) {
 }
 
 // ── ตัวช่วยเรียก Gemini (ใช้ Smart Quota เหมือน ai_handler) ──
+if (typeof sendLineText === 'undefined') {
+  globalThis.sendLineText = function (msg) {
+    const token = PropertiesService.getScriptProperties().getProperty('LINE_CHANNEL_TOKEN');
+    if (!token) return; // ยังไม่ใส่ LINE token = ข้ามการแจ้งเตือนเงียบๆ
+    UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + token },
+      payload: JSON.stringify({
+        to: PropertiesService.getScriptProperties().getProperty('LINE_USER_ID'),
+        messages: [{ type: 'text', text: msg }]
+      }),
+      muteHttpExceptions: true
+    });
+  };
+}
+
 function callGemini(prompt) {
   const payload = {
     contents: [{ parts: [{ text: prompt }] }],
