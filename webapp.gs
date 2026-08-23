@@ -133,7 +133,7 @@ function createVideoJob(payload) {
   sheet.getRange(rowNum, CONFIG.COL.AI_CAPTION).setValue(p.caption || '');
   sheet.getRange(rowNum, CONFIG.COL.AI_GENERATED_AT).setValue(now);
   sheet.getRange(rowNum, CONFIG.COL.STATUS).setValue(
-    p.requireApproval ? CONFIG.STATUS.PENDING_REVIEW : CONFIG.STATUS.PENDING
+    p.requireApproval === false ? CONFIG.STATUS.PENDING : CONFIG.STATUS.PENDING_REVIEW
   );
 
   // แจ้งเตือนทุกงานที่สร้างใหม่เสมอ (ถ้ารออนุมัติจะมีปุ่มกดใน Telegram)
@@ -186,14 +186,15 @@ function notifyAdmin(msg, approveRow) {
   }
 }
 
-// ส่งตัวเลขแถวที่สร้าง พร้อมแจ้งเตือนทุกครั้งที่มีงานใหม่
+// ส่งตัวเลขแถวที่สร้าง พร้อมแจ้งเตือนทุกครั้งที่มีงานใหม่ (มีปุ่มอนุมัติเสมอ)
 function notifyNewJob(p, rowNum) {
-  const msg = '🎬 มีคลิปใหม่' + (p.requireApproval ? 'รออนุมัติ' : 'ถูกสร้าง') +
+  const needApproval = p.requireApproval !== false; // เริ่มต้น = รออนุมัติเสมอ
+  const msg = '🎬 มีคลิปใหม่รออนุมัติ' +
     '\n📦 ' + (p.productName || '') +
     '\n🔑 คีย์เวิร์ด: ' + (p.keyword || '') +
-    '\n📊 สถานะ: ' + (p.requireApproval ? 'PENDING_REVIEW (รออนุมัติ)' : 'PENDING (รอโพสต์)') +
+    '\n📊 สถานะ: ' + (needApproval ? 'PENDING_REVIEW (รออนุมัติ)' : 'PENDING (รอโพสต์อัตโนมัติ)') +
     '\n📄 แถวที่: ' + rowNum;
-  notifyAdmin(msg, p.requireApproval ? rowNum : null);
+  notifyAdmin(msg, needApproval ? rowNum : null);
 }
 
 function callGemini(prompt) {
