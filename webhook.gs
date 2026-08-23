@@ -7,7 +7,10 @@ function doPost(e) {
   if (!e || !e.postData) return res;
   
   try {
-    const events = JSON.parse(e.postData.contents).events || [];
+    const body = JSON.parse(e.postData.contents);
+    // --- Telegram webhook ---
+    if (body.update_id !== undefined) { handleTelegramUpdate(body); return res; }
+    const events = body.events || [];
     events.forEach(ev => {
       if (ev.type === 'postback') {
         handlePostback(ev);
@@ -50,6 +53,51 @@ function startReelDemo() {
   sheet.getRange(row, 12).setValue('PENDING');
   sendLineText('🚀 กำลังสร้างคลิป Reels ทดสอบ...');
   processAllPending();
+}
+
+// ── Telegram: รับการกดปุ่มอนุมัติ/ยกเลิก + คำสั่งพิมพ์ ──
+function handleTelegramUpdate(body) {
+  const tgToken = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
+  if (!tgToken) return;
+
+  // กดปุ่ม inline (callback_query)
+  if (body.callback_query) {
+    const cb = body.callback_query;
+    const [action, rowNumStr] = String(cb.data || '').split(':');
+    const rowNum = Number(rowNumStr);
+    // ตอบกลับ Telegram ให้ปุ่มหมดสถานะ loading ก่อน (จะได้ไม่ค้าง)
+    UrlFetchApp.fetch('https://api.telegram.org/bot' + tgToken + '/answerCallbackQuery', {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ callback_query_id: cb.id }), muteHttpExceptions: true
+    });
+    if ((action === 'approve' || action === 'reject') && rowNum) {
+      handleApproveCommand(action, rowNum);
+      // แก้ข้อความเดิมให้เห็นผลการกด
+      editTelegramMessage(tgToken, cb.message,
+        (action === 'approve' ? '✅ กดอนุมัติแล้ว — กำลังโพสต์ (แถว ' : '🚫 ยกเลิกแล้ว (แถว ') + rowNum + ')');
+    }
+    return;
+  }
+
+  // ข้อความพิมพ์: approve 12 / reject 12 / สถานะ / เริ่ม
+  const txt = (body.message && body.message.text || '').trim().toLowerCase();
+  const cmdMatch = txt.match(/^(approve|อนุมัติ|reject|ปฏิเสธ|ยกเลิก)\s+(\d+)$/);
+  if (cmdMatch) {
+    handleApproveCommand(cmdMatch[1], Number(cmdMatch[2]));
+  } else if (txt === 'status' || txt === 'สถานะ') {
+    sendStatusSummary();
+  } else if (txt === 'เริ่ม' || txt === 'start') {
+    startDemo();
+  }
+}
+
+function editTelegramMessage(tgToken, msg, newText) {
+  if (!msg) return;
+  UrlFetchApp.fetch('https://api.telegram.org/bot' + tgToken + '/editMessageText', {
+    method: 'post', contentType: 'application/json',
+    payload: JSON.stringify({ chat_id: msg.chat.id, message_id: msg.message_id, text: newText }),
+    muteHttpExceptions: true
+  });
 }
 
 // ── อนุมัติ/ยกเลิกตามเลขแถวใน Sheet (ใช้กับงานจากหน้าเว็บ) ──

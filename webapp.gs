@@ -136,53 +136,64 @@ function createVideoJob(payload) {
     p.requireApproval ? CONFIG.STATUS.PENDING_REVIEW : CONFIG.STATUS.PENDING
   );
 
-  // แจ้งเตือนทุกงานที่สร้างใหม่เสมอ (ไม่จำเป็นต้องเปิดสวิตช์อนุมัติ)
+  // แจ้งเตือนทุกงานที่สร้างใหม่เสมอ (ถ้ารออนุมัติจะมีปุ่มกดใน Telegram)
   try {
-    sendLineText('🎬 มีคลิปใหม่ถูกสร้าง\n📦 ' + (p.productName || '') +
-      '\n🔑 คีย์เวิร์ด: ' + (p.keyword || '') +
-      '\n📊 สถานะ: ' + (p.requireApproval ? 'PENDING_REVIEW (รออนุมัติ)' : 'PENDING (รอโพสต์)') +
-      '\n📄 แถวที่: ' + rowNum +
-      (p.requireApproval ? ('\n\nพิมพ์: approve ' + rowNum + ' เพื่ออนุมัติโพสต์\nพิมพ์: reject ' + rowNum + ' เพื่อยกเลิก') : ''));
+    notifyNewJob(p, rowNum);
   } catch (e) { console.error('แจ้งเตือนไม่สำเร็จ: ' + e.message); }
 
   return { ok: true, row: rowNum };
 }
 
 // ── ตัวช่วยเรียก Gemini (ใช้ Smart Quota เหมือน ai_handler) ──
-// ── แจ้งเตือนแอดมิน: ส่งทั้ง LINE และ Telegram (ตัวไหนตั้งค่าไว้ตัวนั้นทำงาน) ──
-if (typeof sendLineText === 'undefined') {
-  globalThis.sendLineText = function (msg) {
-    // --- LINE ---
-    const token = PropertiesService.getScriptProperties().getProperty('LINE_CHANNEL_TOKEN');
-    const userId = PropertiesService.getScriptProperties().getProperty('LINE_USER_ID');
-    if (token && userId) {
-      try {
-        UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
-          method: 'post',
-          contentType: 'application/json',
-          headers: { Authorization: 'Bearer ' + token },
-          payload: JSON.stringify({ to: userId, messages: [{ type: 'text', text: msg }] }),
-          muteHttpExceptions: true
-        });
-      } catch (e) { console.error('LINE push failed: ' + e.message); }
-    } else {
-      console.warn('ยังไม่ได้ตั้งค่า LINE_CHANNEL_TOKEN / LINE_USER_ID ใน Script Properties — ข้ามการแจ้งเตือน LINE');
-    }
+// ── แจ้งเตือนแอดมิน: Telegram (มีปุ่มอนุมัติ/ยกเลิกได้) + LINE ──
+function notifyAdmin(msg, approveRow) {
+  // --- Telegram (พร้อมปุ่มกดถ้าระบุ approveRow) ---
+  const tgToken = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
+  const tgChat = PropertiesService.getScriptProperties().getProperty('TELEGRAM_CHAT_ID');
+  if (tgToken && tgChat) {
+    try {
+      const payload = { chat_id: tgChat, text: msg };
+      if (approveRow) {
+        payload.reply_markup = { inline_keyboard: [[
+          { text: '✅ อนุมัติโพสต์', callback_data: 'approve:' + approveRow },
+          { text: '❌ ยกเลิก', callback_data: 'reject:' + approveRow }
+        ]] };
+      }
+      UrlFetchApp.fetch('https://api.telegram.org/bot' + tgToken + '/sendMessage', {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+    } catch (e) { console.error('Telegram send failed: ' + e.message); }
+  } else {
+    console.warn('ยังไม่ได้ตั้งค่า TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID ใน Script Properties');
+  }
 
-    // --- Telegram ---
-    const tgToken = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
-    const tgChat = PropertiesService.getScriptProperties().getProperty('TELEGRAM_CHAT_ID');
-    if (tgToken && tgChat) {
-      try {
-        UrlFetchApp.fetch('https://api.telegram.org/bot' + tgToken + '/sendMessage', {
-          method: 'post',
-          contentType: 'application/json',
-          payload: JSON.stringify({ chat_id: tgChat, text: msg }),
-          muteHttpExceptions: true
-        });
-      } catch (e) { console.error('Telegram send failed: ' + e.message); }
-    }
-  };
+  // --- LINE ---
+  const token = PropertiesService.getScriptProperties().getProperty('LINE_CHANNEL_TOKEN');
+  const userId = PropertiesService.getScriptProperties().getProperty('LINE_USER_ID');
+  if (token && userId) {
+    try {
+      UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { Authorization: 'Bearer ' + token },
+        payload: JSON.stringify({ to: userId, messages: [{ type: 'text', text: msg }] }),
+        muteHttpExceptions: true
+      });
+    } catch (e) { console.error('LINE push failed: ' + e.message); }
+  }
+}
+
+// ส่งตัวเลขแถวที่สร้าง พร้อมแจ้งเตือนทุกครั้งที่มีงานใหม่
+function notifyNewJob(p, rowNum) {
+  const msg = '🎬 มีคลิปใหม่' + (p.requireApproval ? 'รออนุมัติ' : 'ถูกสร้าง') +
+    '\n📦 ' + (p.productName || '') +
+    '\n🔑 คีย์เวิร์ด: ' + (p.keyword || '') +
+    '\n📊 สถานะ: ' + (p.requireApproval ? 'PENDING_REVIEW (รออนุมัติ)' : 'PENDING (รอโพสต์)') +
+    '\n📄 แถวที่: ' + rowNum;
+  notifyAdmin(msg, p.requireApproval ? rowNum : null);
 }
 
 function callGemini(prompt) {
