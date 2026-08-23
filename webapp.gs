@@ -85,16 +85,29 @@ function generateStory(payload) {
 }`;
 
   const raw = callGemini(prompt);
-
-  // ตัด ```json ที่ Gemini ชอบใส่ออก
-  const jsonText = raw.replace(/```json|```/g, '').trim();
-  let result;
-  try {
-    result = JSON.parse(jsonText);
-  } catch (e) {
-    throw new Error('AI ตอบไม่ใช่ JSON: ' + raw.substring(0, 200));
+  let result = extractJson(raw);
+  if (!result) {
+    // ครั้งแรกตอบมาไม่ใช่ JSON — สั่งซ้ำครั้งเดียวโดยบอกให้ตอบ JSON เท่านั้น
+    const raw2 = callGemini(prompt + '\n\nข้อความก่อนหน้าของคุณไม่ใช่ JSON — ตอบใหม่เป็น JSON ล้วน ห้ามมีข้อความนำ ห้ามมี ``` เริ่มต้นที่ { และปิดที่ } เท่านั้น');
+    result = extractJson(raw2);
+  }
+  if (!result) {
+    throw new Error('AI ตอบไม่ใช่ JSON (ลองกดใหม่อีกครั้ง): ' + raw.substring(0, 150));
   }
   return { ok: true, story: result };
+}
+
+// ── ดึง JSON จากคำตอบ AI แม่นขึ้น: ตัด ``` และหาวงเล็บปีกกา { ... } ──
+function extractJson(text) {
+  if (!text) return null;
+  let t = String(text).replace(/```json|```/g, '').trim();
+  try { return JSON.parse(t); } catch (e) {}
+  const start = t.indexOf('{');
+  const end = t.lastIndexOf('}');
+  if (start !== -1 && end > start) {
+    try { return JSON.parse(t.substring(start, end + 1)); } catch (e) {}
+  }
+  return null;
 }
 
 // ── 3) บันทึกงานสร้างวิดีโอลง Sheet (รอการสร้าง/อนุมัติ) ─────
