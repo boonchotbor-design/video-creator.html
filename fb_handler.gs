@@ -13,26 +13,40 @@ function postFacebookVideo(caption, videoUrl, affiliateLink) {
 }
 
 function postFacebookReel(caption, videoUrl) {
+  // 1) โพสต์วีดีโอปกติก่อน (เสถียรกว่า — ทดสอบกับไฟล์ URL ภายนอกแล้วผ่าน)
+  try {
+    const pageId = PropertiesService.getScriptProperties().getProperty('FB_PAGE_ID') || CONFIG.FB_PAGE_ID;
+    const vToken = String(_fbToken ? _fbToken() : CONFIG.FB_PAGE_TOKEN).replace(/\s+/g, '');
+    const vRes = UrlFetchApp.fetch(`https://graph.facebook.com/${CONFIG.FB_API_VERSION}/${pageId}/videos?access_token=${vToken}`, {
+      method: 'post', muteHttpExceptions: true,
+      payload: { file_url: videoUrl, description: caption }
+    });
+    const vJson = JSON.parse(vRes.getContentText());
+    if (vJson.id) return vJson.id;
+  } catch (e) { /* ไปลอง Reel */ }
+
+  // 2) ถ้าวีดีโอปกติไม่ผ่าน ลอง Reel 2-step
   const token = String(CONFIG.FB_PAGE_TOKEN).replace(/\s+/g, '');
   const baseUrl = `https://graph.facebook.com/${CONFIG.FB_API_VERSION}/${CONFIG.FB_PAGE_ID}/video_reels`;
 
   try {
-    // 1. Initialize
     const initPayload = { upload_phase: 'start', access_token: token };
-    const initRes = UrlFetchApp.fetch(baseUrl, { method: 'post', payload: initPayload });
+    const initRes = UrlFetchApp.fetch(baseUrl, { method: 'post', payload: initPayload, muteHttpExceptions: true });
     const videoId = JSON.parse(initRes.getContentText()).video_id;
 
-    // 2. Publish
     const publishPayload = {
       upload_phase: 'finish',
       video_id: videoId,
       video_state: 'PUBLISHED',
       description: caption,
       file_url: videoUrl,
+      video_url: videoUrl,
       access_token: token
     };
-    const pubRes = UrlFetchApp.fetch(baseUrl, { method: 'post', payload: publishPayload });
-    return JSON.parse(pubRes.getContentText()).id || videoId;
+    const pubRes = UrlFetchApp.fetch(baseUrl, { method: 'post', payload: publishPayload, muteHttpExceptions: true });
+    const pub = JSON.parse(pubRes.getContentText());
+    if (pub.error) throw new Error(pub.error.message);
+    return pub.id || videoId;
   } catch (e) { throw new Error(`Reels API Error: ${e.message}`); }
 }
 
