@@ -178,13 +178,13 @@ function callGemini(prompt) {
     muteHttpExceptions: true
   };
 
-  // โมเดลที่ทดสอบแล้วตอบคำสั่งเขียนบทได้เสถียร เรียงจากนิ่งที่สุด
+  // โมเดลที่ทดสอบกับคีย์นี้แล้วยังใช้ได้จริง (โมเดล 1.5/2.0/2.5 ถูกปิดหมดแล้ว)
   const preferred = [
-    'models/gemini-2.5-flash',
-    'models/gemini-2.0-flash',
-    'models/gemini-1.5-flash-latest',
-    'models/gemini-1.5-flash',
-    'models/gemini-2.5-flash-lite'
+    'models/gemini-3.6-flash',
+    'models/gemini-3-flash-preview',
+    'models/gemini-3.1-flash-lite',
+    'models/gemini-flash-latest',
+    'models/gemini-flash-lite-latest'
   ];
 
   // เศษวลีจากพรอมป์ ใช้เช็คว่า AI ตอบพรอมป์เรากลับมา (echo) หรือไม่
