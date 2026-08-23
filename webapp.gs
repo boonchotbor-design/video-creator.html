@@ -51,18 +51,26 @@ if (typeof postFacebookReel === 'undefined') {
     const pageId = PropertiesService.getScriptProperties().getProperty('FB_PAGE_ID') || CONFIG.FB_PAGE_ID;
     const ver = CONFIG.FB_API_VERSION || 'v21.0';
     const baseUrl = `https://graph.facebook.com/${ver}/${pageId}/video_reels`;
-    const initRes = UrlFetchApp.fetch(baseUrl, { method: 'post', payload: { upload_phase: 'start', access_token: token } });
-    const videoId = JSON.parse(initRes.getContentText()).video_id;
-    const pubRes = UrlFetchApp.fetch(baseUrl, {
-      method: 'post',
-      payload: {
-        upload_phase: 'finish', video_id: videoId, video_state: 'PUBLISHED',
-        description: caption, file_url: videoUrl, access_token: token
-      }
-    });
-    const pub = JSON.parse(pubRes.getContentText());
-    if (pub.error) throw new Error(pub.error.message);
-    return pub.id || videoId;
+    try {
+      // 1) ลองโพสต์เป็น Reel ก่อน
+      const initRes = UrlFetchApp.fetch(baseUrl, { method: 'post', payload: { upload_phase: 'start', access_token: token }, muteHttpExceptions: true });
+      const videoId = JSON.parse(initRes.getContentText()).video_id;
+      if (!videoId) throw new Error('เริ่ม Reel ไม่ได้');
+      const pubRes = UrlFetchApp.fetch(baseUrl, {
+        method: 'post', muteHttpExceptions: true,
+        payload: {
+          upload_phase: 'finish', video_id: videoId, video_state: 'PUBLISHED',
+          description: caption, file_url: videoUrl, video_url: videoUrl, access_token: token
+        }
+      });
+      const pub = JSON.parse(pubRes.getContentText());
+      if (pub.error) throw new Error(pub.error.message);
+      return pub.id || videoId;
+    } catch (e) {
+      // 2) Reel ไม่ผ่าน → สลับไปโพสต์วีดีโอปกติ (ผ่านแน่นอนกว่า)
+      console.warn('Reel ไม่สำเร็จ (' + e.message + ') — สลับไปโพสต์วีดีโอปกติ');
+      return globalThis.postFacebookVideo(caption, videoUrl, '');
+    }
   };
 }
 
