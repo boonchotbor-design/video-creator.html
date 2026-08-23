@@ -69,8 +69,10 @@
   .scene{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;}
   .scene .sc-head{font-size:12px;color:var(--acc2);font-weight:700;margin-bottom:6px;}
   .scene p{font-size:13px;line-height:1.6;color:var(--txt);}
-  .scene .img-slot{height:90px;border-radius:8px;background:repeating-linear-gradient(45deg,#232839,#232839 10px,#1e2230 10px,#1e2230 20px);
-                   display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:11px;margin-bottom:8px;}
+  .scene .img-slot{height:150px;border-radius:8px;overflow:hidden;margin-bottom:8px;position:relative;background:#232839;}
+  .scene .img-slot img{width:100%;height:100%;object-fit:cover;display:block;}
+  .scene .img-slot .img-cap{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.65);
+    color:#fff;font-size:11px;padding:5px 8px;line-height:1.4;}
 
   /* Loop box */
   .loop-box{border:1px solid var(--warn);border-radius:10px;padding:14px;background:rgba(255,176,32,.05);}
@@ -86,9 +88,10 @@
   .tl-item.run{border-color:var(--acc);color:var(--acc);}
   .tl-item.done{border-color:var(--ok);color:var(--ok);}
 
-  .preview-thumb{width:100%;aspect-ratio:9/16;max-width:120px;border-radius:10px;background:
-    repeating-linear-gradient(45deg,#232839,#232839 10px,#1e2230 10px,#1e2230 20px);
-    display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:10px;text-align:center;padding:6px;}
+  .preview-thumb{width:100%;aspect-ratio:9/16;max-width:120px;border-radius:10px;overflow:hidden;position:relative;}
+  .preview-thumb img{width:100%;height:100%;object-fit:cover;}
+  .preview-thumb .cap{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);color:#fff;
+    font-size:10px;text-align:center;padding:4px 2px;}
   .thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
 </style>
 </head>
@@ -270,24 +273,33 @@
 
     <div class="scene">
       <div class="sc-head">SCENE 1 — Hook (0–6 วิ)</div>
-      <div class="img-slot" id="sc1img">🖼️ ภาพที่ AI สร้าง: —</div>
+      <div class="img-slot" id="sc1img">
+        <img src="https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=600&q=70" alt="Scene 1">
+        <div class="img-cap">🖼️ ภาพที่ AI สร้าง: ป้าทำหน้าเครียด แขกเดินหนีห้องน้ำ</div>
+      </div>
       <p id="sc1text">กดปุ่ม "สร้างบท" เพื่อให้ AI เขียนบทแต่ละซีน</p>
     </div>
     <div class="scene">
       <div class="sc-head">SCENE 2 — Solution (6–18 วิ)</div>
-      <div class="img-slot" id="sc2img">🖼️ ภาพที่ AI สร้าง: —</div>
+      <div class="img-slot" id="sc2img">
+        <img src="https://images.unsplash.com/photo-1632853383015-2a0a0b3a9b8f?w=600&q=70" alt="Scene 2" onerror="this.src='https://images.unsplash.com/photo-1585421514738-01798e348b17?w=600&q=70'">
+        <div class="img-cap">🖼️ ภาพที่ AI สร้าง: ฉีดสเปรย์ Fresh Home กลิ่นหอมฟุ้ง</div>
+      </div>
       <p id="sc2text">—</p>
     </div>
     <div class="scene">
       <div class="sc-head">SCENE 3 — CTA (18–24 วิ)</div>
-      <div class="img-slot" id="sc3img">🖼️ ภาพที่ AI สร้าง: —</div>
+      <div class="img-slot" id="sc3img">
+        <img src="https://images.unsplash.com/photo-1584622781564-1d987f7333c1?w=600&q=70" alt="Scene 3">
+        <div class="img-cap">🖼️ ภาพที่ AI สร้าง: ห้องน้ำสะอาดเหมือนโรงแรม 5 ดาว + ราคาสินค้า</div>
+      </div>
       <p id="sc3text">—</p>
     </div>
 
     <div class="thumbs">
-      <div class="preview-thumb">พรีวิว<br>วิดีโอ 9:16</div>
-      <div class="preview-thumb">พรีวิว<br>วิดีโอ 9:16</div>
-      <div class="preview-thumb">พรีวิว<br>วิดีโอ 9:16</div>
+      <div class="preview-thumb"><img src="https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=300&q=60" alt=""><div class="cap">พรีวิว 9:16</div></div>
+      <div class="preview-thumb"><img src="https://images.unsplash.com/photo-1585421514738-01798e348b17?w=300&q=60" alt=""><div class="cap">พรีวิว 9:16</div></div>
+      <div class="preview-thumb"><img src="https://images.unsplash.com/photo-1584622781564-1d987f7333c1?w=300&q=60" alt=""><div class="cap">พรีวิว 9:16</div></div>
     </div>
   </div>
 
@@ -447,7 +459,11 @@ function renderStory(s) {
   document.getElementById('aiSetting').textContent = s.setting || '—';
   (s.scenes || []).forEach((sc, i) => {
     const n = i + 1;
-    document.getElementById('sc' + n + 'img').textContent = '🖼️ ภาพที่ AI สร้าง: ' + (sc.image || '—');
+    const slot = document.getElementById('sc' + n + 'img');
+    if (slot) {
+      const cap = slot.querySelector('.img-cap');
+      if (cap) cap.textContent = '🖼️ ' + (sc.image || sc.title || 'ภาพซีน ' + n);
+    }
     document.getElementById('sc' + n + 'text').textContent = sc.script || '—';
   });
   if (s.caption) document.getElementById('caption').value = s.caption;
