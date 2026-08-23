@@ -27,9 +27,25 @@ if (typeof getSheet === 'undefined') {
   };
 }
 
-// ---- Facebook posting (สแตนด์อโลน: ใช้ได้แม้ไม่มี fb_handler.gs / main.gs) ----
+// ---- Facebook posting (สแตนด์อโลน + รองรับหลายเพจ) ----
+// เพจหลัก: FB_PAGE_ID / FB_PAGE_TOKEN, เพจเพิ่มเติม: FB_PAGE_ID_2 / FB_PAGE_TOKEN_2, _3, _4...
+function _fbPages() {
+  const props = PropertiesService.getScriptProperties();
+  const pages = [];
+  const primaryId = props.getProperty('FB_PAGE_ID') || CONFIG.FB_PAGE_ID;
+  const primaryToken = String(props.getProperty('FB_PAGE_TOKEN') || CONFIG.FB_PAGE_TOKEN || '').replace(/\s+/g, '');
+  if (primaryId && primaryToken) pages.push({ id: primaryId, token: primaryToken });
+  for (let n = 2; n <= 5; n++) {
+    const id = props.getProperty('FB_PAGE_ID_' + n);
+    const token = String(props.getProperty('FB_PAGE_TOKEN_' + n) || '').replace(/\s+/g, '');
+    if (id && token) pages.push({ id: id, token: token });
+  }
+  return pages;
+}
+
 function _fbToken() {
-  return String(PropertiesService.getScriptProperties().getProperty('FB_PAGE_TOKEN') || CONFIG.FB_PAGE_TOKEN || '').replace(/\s+/g, '');
+  const pages = _fbPages();
+  return pages.length ? pages[0].token : '';
 }
 
 if (typeof callFacebookAPI === 'undefined') {
@@ -92,29 +108,69 @@ if (typeof postFacebookVideo === 'undefined') {
   };
 }
 
+// โพสต์วีดีโอไปยัง 1 เพจ: ลอง Reel ก่อน ถ้าพลาดสลับไปโพสต์วีดีโอปกติ
+function _postVideoToPage(page, caption, videoUrl, affiliateLink) {
+  const ver = CONFIG.FB_API_VERSION || 'v21.0';
+  // 1) ลองโพสต์วีดีโอปกติ (เสถียรสุด ทดสอบแล้วผ่านกับไฟล์ URL ภายนอก)
+  try {
+    const res = UrlFetchApp.fetch(`https://graph.facebook.com/${ver}/${page.id}/videos?access_token=${page.token}`, {
+      method: 'post', muteHttpExceptions: true,
+      payload: { file_url: videoUrl, description: `${caption}\n\n🛒 สั่งซื้อ: ${affiliateLink || ''}` }
+    });
+    const json = JSON.parse(res.getContentText());
+    if (json.id) return json.id;
+  } catch (e) { /* ไปลอง Reel */ }
+  // 2) ลอง Reel
+  const baseUrl = `https://graph.facebook.com/${ver}/${page.id}/video_reels`;
+  const initRes = UrlFetchApp.fetch(baseUrl, { method: 'post', payload: { upload_phase: 'start', access_token: page.token }, muteHttpExceptions: true });
+  const videoId = JSON.parse(initRes.getContentText()).video_id;
+  if (videoId) {
+    const pubRes = UrlFetchApp.fetch(baseUrl, {
+      method: 'post', muteHttpExceptions: true,
+      payload: {
+        upload_phase: 'finish', video_id: videoId, video_state: 'PUBLISHED',
+        description: caption, file_url: videoUrl, video_url: videoUrl, access_token: page.token
+      }
+    });
+    const pub = JSON.parse(pubRes.getContentText());
+    if (pub.id) return pub.id;
+    throw new Error(pub.error ? pub.error.message : 'Reel และวีดีโอปกติไม่สำเร็จ');
+  }
+  throw new Error('เริ่ม Reel ไม่ได้ — ตรวจสอบ token/สิทธิ์ของเพจ ' + page.id);
+}
+
 if (typeof postApprovedProduct === 'undefined') {
   globalThis.postApprovedProduct = function (rowNum) {
     const sheet = getSheet();
     const row = sheet.getRange(rowNum, 1, 1, 17).getValues()[0];
-    const mType = String(row[4]).toUpperCase();
     const caption = row[9];
     const mediaUrl = row[3];
     const affiliateLink = row[5];
     const productName = row[1];
 
     try {
-      let fbId;
-      if (mType === 'IMAGE') {
-        fbId = globalThis.postFacebookImage(caption, mediaUrl, affiliateLink);
-      } else if (mType === 'VIDEO') {
-        fbId = globalThis.postFacebookVideo(caption, mediaUrl, affiliateLink);
-      } else { // REEL (ค่าเริ่มต้นของงานจากหน้าเว็บ)
-        fbId = globalThis.postFacebookReel(caption, mediaUrl);
-      }
-      sheet.getRange(rowNum, 14).setValue(fbId);
+      if (!mediaUrl) throw new Error('ไม่มีลิงก์วีดีโอในคอลัมน์ D (Media URL) — ใส่ลิงก์ไฟล์จริงก่อนโพสต์');
+      const pages = _fbPages();
+      if (!pages.length) throw new Error('ยังไม่ได้ใส่ FB_PAGE_TOKEN — ใส่ใน Script Properties');
+
+      // โพสต์ทุกเพจที่ตั้งค่าไว้ (หลัก + เพจ 2, 3, 4, 5)
+      const results = [];
+      const errors = [];
+      pages.forEach(pg => {
+        try {
+          const pid = _postVideoToPage(pg, caption, mediaUrl, affiliateLink);
+          results.push({ page: pg.id, postId: pid });
+        } catch (err) { errors.push('เพจ ' + pg.id + ': ' + err.message); }
+      });
+      if (!results.length) throw new Error(errors.join(' | ') || 'โพสต์ไม่สำเร็จทุกเพจ');
+
+      sheet.getRange(rowNum, 14).setValue(results.map(r => r.postId).join(', '));
       sheet.getRange(rowNum, 16).setValue(new Date().toISOString());
       sheet.getRange(rowNum, 12).setValue('POSTED');
-      notifyAdmin(`✅ โพสต์สำเร็จ!\n📦 ${productName}\n📘 https://facebook.com/${fbId}`);
+      let msg = `✅ โพสต์สำเร็จ!\n📦 ${productName}\n📄 แถว ${rowNum}\n`;
+      results.forEach(r => { msg += `📘 https://facebook.com/${r.postId}\n`; });
+      if (errors.length) msg += '⚠️ บางเพจไม่สำเร็จ: ' + errors.join(' | ');
+      notifyAdmin(msg);
     } catch (e) {
       sheet.getRange(rowNum, 12).setValue('ERROR');
       sheet.getRange(rowNum, 17).setValue(e.message);
