@@ -136,15 +136,14 @@ function createVideoJob(payload) {
     p.requireApproval ? CONFIG.STATUS.PENDING_REVIEW : CONFIG.STATUS.PENDING
   );
 
-  // ถ้าเปิดอนุมัติผ่าน LINE ให้ส่งแจ้งเตือนพร้อมวิธีอนุมัติทันที
-  if (p.requireApproval) {
-    try {
-      sendLineText('🎬 มีคลิปใหม่รออนุมัติ\n📦 ' + (p.productName || '') +
-        '\n🔑 คีย์เวิร์ด: ' + (p.keyword || '') +
-        '\n\nพิมพ์: approve ' + rowNum + ' เพื่ออนุมัติโพสต์' +
-        '\nพิมพ์: reject ' + rowNum + ' เพื่อยกเลิก');
-    } catch (e) { /* ไม่ให้ LINE fail กระทบการบันทึก */ }
-  }
+  // แจ้งเตือนทุกงานที่สร้างใหม่เสมอ (ไม่จำเป็นต้องเปิดสวิตช์อนุมัติ)
+  try {
+    sendLineText('🎬 มีคลิปใหม่ถูกสร้าง\n📦 ' + (p.productName || '') +
+      '\n🔑 คีย์เวิร์ด: ' + (p.keyword || '') +
+      '\n📊 สถานะ: ' + (p.requireApproval ? 'PENDING_REVIEW (รออนุมัติ)' : 'PENDING (รอโพสต์)') +
+      '\n📄 แถวที่: ' + rowNum +
+      (p.requireApproval ? ('\n\nพิมพ์: approve ' + rowNum + ' เพื่ออนุมัติโพสต์\nพิมพ์: reject ' + rowNum + ' เพื่อยกเลิก') : ''));
+  } catch (e) { console.error('แจ้งเตือนไม่สำเร็จ: ' + e.message); }
 
   return { ok: true, row: rowNum };
 }
