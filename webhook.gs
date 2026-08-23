@@ -13,7 +13,11 @@ function doPost(e) {
         handlePostback(ev);
       } else if (ev.type === 'message' && ev.message.text) {
         const txt = ev.message.text.trim().toLowerCase();
-        if (txt === 'เริ่ม' || txt === 'start') {
+        // คำสั่งอนุมัติ/ยกเลิกจากหน้าเว็บ: "approve 12" / "อนุมัติ 12" / "reject 12"
+        const cmdMatch = txt.match(/^(approve|อนุมัติ|reject|ปฏิเสธ|ยกเลิก)\s+(\d+)$/);
+        if (cmdMatch) {
+          handleApproveCommand(cmdMatch[1], Number(cmdMatch[2]));
+        } else if (txt === 'เริ่ม' || txt === 'start') {
           startDemo();
         } else if (txt === 'เริ่มคลิป' || txt === 'reel') {
           startReelDemo();
@@ -46,6 +50,29 @@ function startReelDemo() {
   sheet.getRange(row, 12).setValue('PENDING');
   sendLineText('🚀 กำลังสร้างคลิป Reels ทดสอบ...');
   processAllPending();
+}
+
+// ── อนุมัติ/ยกเลิกตามเลขแถวใน Sheet (ใช้กับงานจากหน้าเว็บ) ──
+function handleApproveCommand(action, rowNum) {
+  const sheet = getSheet();
+  if (rowNum < 2 || rowNum > sheet.getLastRow()) {
+    sendLineText('❌ ไม่พบแถวที่ ' + rowNum + ' ใน Sheet');
+    return;
+  }
+  const status = sheet.getRange(rowNum, 12).getValue();
+  const productName = sheet.getRange(rowNum, 2).getValue();
+  if (action === 'approve' || action === 'อนุมัติ') {
+    if (status !== 'PENDING_REVIEW') {
+      sendLineText('⚠️ แถวที่ ' + rowNum + ' สถานะเป็น ' + status + ' (ไม่ใช่ PENDING_REVIEW) อนุมัติไม่ได้');
+      return;
+    }
+    sheet.getRange(rowNum, 12).setValue('APPROVED');
+    sendLineText('✅ อนุมัติแล้ว: ' + productName + ' — เริ่มโพสต์เลย!');
+    postApprovedProduct(rowNum);
+  } else {
+    sheet.getRange(rowNum, 12).setValue('REJECTED');
+    sendLineText('🚫 ยกเลิกแล้ว: ' + productName);
+  }
 }
 
 // ── ฟังก์ชันอื่นๆ ยังคงเดิม ──
