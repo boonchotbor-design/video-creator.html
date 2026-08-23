@@ -55,6 +55,38 @@ function startReelDemo() {
   processAllPending();
 }
 
+// ── Telegram polling: ดึงคำสั่ง/การกดปุ่มเองทุกนาที (แก้ปัญหา GAS 302 กับ webhook) ──
+// ติดตั้งครั้งเดียว: รันฟังก์ชัน setupTelegramPolling ใน Editor
+function setupTelegramPolling() {
+  // ยกเลิก webhook ก่อน (กันชนกับ getUpdates)
+  const tgToken = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
+  if (tgToken) {
+    UrlFetchApp.fetch('https://api.telegram.org/bot' + tgToken + '/deleteWebhook?drop_pending_updates=false', { muteHttpExceptions: true });
+  }
+  // ล้าง trigger เก่า แล้วสร้างใหม่: ทุก 1 นาที
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'checkTelegramUpdates') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('checkTelegramUpdates').timeBased().everyMinutes(1).create();
+  notifyAdmin('✅ ระบบรับคำสั่ง Telegram (polling) เริ่มทำงานแล้ว — กดปุ่มอนุมัติได้เลย');
+}
+
+function checkTelegramUpdates() {
+  const tgToken = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
+  if (!tgToken) return;
+  const props = PropertiesService.getScriptProperties();
+  const offset = Number(props.getProperty('TG_OFFSET') || 0);
+  try {
+    const res = UrlFetchApp.fetch('https://api.telegram.org/bot' + tgToken + '/getUpdates?timeout=0&offset=' + (offset + 1), { muteHttpExceptions: true });
+    const json = JSON.parse(res.getContentText());
+    if (!json.ok) return;
+    json.result.forEach(up => {
+      props.setProperty('TG_OFFSET', String(up.update_id));
+      handleTelegramUpdate(up);
+    });
+  } catch (e) { console.error('poll error: ' + e.message); }
+}
+
 // ── Telegram: รับการกดปุ่มอนุมัติ/ยกเลิก + คำสั่งพิมพ์ ──
 function handleTelegramUpdate(body) {
   const tgToken = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
