@@ -27,6 +27,94 @@ if (typeof getSheet === 'undefined') {
   };
 }
 
+// ---- Facebook posting (สแตนด์อโลน: ใช้ได้แม้ไม่มี fb_handler.gs / main.gs) ----
+function _fbToken() {
+  return String(PropertiesService.getScriptProperties().getProperty('FB_PAGE_TOKEN') || CONFIG.FB_PAGE_TOKEN || '').replace(/\s+/g, '');
+}
+
+if (typeof callFacebookAPI === 'undefined') {
+  globalThis.callFacebookAPI = function (url, payload) {
+    const token = _fbToken();
+    if (!token) throw new Error('ยังไม่ได้ใส่ FB_PAGE_TOKEN — ใส่ใน Script Properties หรือผ่านเมนู 🚀 ใน Google Sheet');
+    const options = { method: 'post', payload: payload, muteHttpExceptions: true };
+    const res = UrlFetchApp.fetch(`${url}?access_token=${token}`, options);
+    const json = JSON.parse(res.getContentText());
+    if (res.getResponseCode() !== 200) throw new Error(json.error && json.error.message || res.getContentText());
+    return json.id || json.post_id || json.video_id;
+  };
+}
+
+if (typeof postFacebookReel === 'undefined') {
+  globalThis.postFacebookReel = function (caption, videoUrl) {
+    if (!videoUrl) throw new Error('ไม่มีลิงก์วีดีโอในคอลัมน์ D (Media URL) — ใส่ลิงก์ไฟล์จริงก่อนโพสต์');
+    const token = _fbToken();
+    const pageId = PropertiesService.getScriptProperties().getProperty('FB_PAGE_ID') || CONFIG.FB_PAGE_ID;
+    const ver = CONFIG.FB_API_VERSION || 'v21.0';
+    const baseUrl = `https://graph.facebook.com/${ver}/${pageId}/video_reels`;
+    const initRes = UrlFetchApp.fetch(baseUrl, { method: 'post', payload: { upload_phase: 'start', access_token: token } });
+    const videoId = JSON.parse(initRes.getContentText()).video_id;
+    const pubRes = UrlFetchApp.fetch(baseUrl, {
+      method: 'post',
+      payload: {
+        upload_phase: 'finish', video_id: videoId, video_state: 'PUBLISHED',
+        description: caption, file_url: videoUrl, access_token: token
+      }
+    });
+    const pub = JSON.parse(pubRes.getContentText());
+    if (pub.error) throw new Error(pub.error.message);
+    return pub.id || videoId;
+  };
+}
+
+if (typeof postFacebookImage === 'undefined') {
+  globalThis.postFacebookImage = function (caption, imageUrl, affiliateLink) {
+    const pageId = PropertiesService.getScriptProperties().getProperty('FB_PAGE_ID') || CONFIG.FB_PAGE_ID;
+    return globalThis.callFacebookAPI(
+      `https://graph.facebook.com/${CONFIG.FB_API_VERSION || 'v21.0'}/${pageId}/photos`,
+      { url: imageUrl, caption: `${caption}\n\n🛒 สั่งซื้อ: ${affiliateLink || ''}` });
+  };
+}
+
+if (typeof postFacebookVideo === 'undefined') {
+  globalThis.postFacebookVideo = function (caption, videoUrl, affiliateLink) {
+    const pageId = PropertiesService.getScriptProperties().getProperty('FB_PAGE_ID') || CONFIG.FB_PAGE_ID;
+    return globalThis.callFacebookAPI(
+      `https://graph.facebook.com/${CONFIG.FB_API_VERSION || 'v21.0'}/${pageId}/videos`,
+      { file_url: videoUrl, description: `${caption}\n\n🛒 สั่งซื้อ: ${affiliateLink || ''}` });
+  };
+}
+
+if (typeof postApprovedProduct === 'undefined') {
+  globalThis.postApprovedProduct = function (rowNum) {
+    const sheet = getSheet();
+    const row = sheet.getRange(rowNum, 1, 1, 17).getValues()[0];
+    const mType = String(row[4]).toUpperCase();
+    const caption = row[9];
+    const mediaUrl = row[3];
+    const affiliateLink = row[5];
+    const productName = row[1];
+
+    try {
+      let fbId;
+      if (mType === 'IMAGE') {
+        fbId = globalThis.postFacebookImage(caption, mediaUrl, affiliateLink);
+      } else if (mType === 'VIDEO') {
+        fbId = globalThis.postFacebookVideo(caption, mediaUrl, affiliateLink);
+      } else { // REEL (ค่าเริ่มต้นของงานจากหน้าเว็บ)
+        fbId = globalThis.postFacebookReel(caption, mediaUrl);
+      }
+      sheet.getRange(rowNum, 14).setValue(fbId);
+      sheet.getRange(rowNum, 16).setValue(new Date().toISOString());
+      sheet.getRange(rowNum, 12).setValue('POSTED');
+      notifyAdmin(`✅ โพสต์สำเร็จ!\n📦 ${productName}\n📘 https://facebook.com/${fbId}`);
+    } catch (e) {
+      sheet.getRange(rowNum, 12).setValue('ERROR');
+      sheet.getRange(rowNum, 17).setValue(e.message);
+      notifyAdmin(`❌ โพสต์ไม่สำเร็จ: ${e.message}`);
+    }
+  };
+}
+
 /**
  * จุดเข้าหน้าเว็บ — คัดลอกไฟล์ ui/video-creator.html ไปเป็นไฟล์ HTML
  * ชื่อ "VideoCreator" ในโปรเจกต์ Apps Script ก่อน Deploy
