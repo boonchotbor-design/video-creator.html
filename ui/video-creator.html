@@ -301,6 +301,19 @@
       <div class="preview-thumb"><img src="https://images.unsplash.com/photo-1585421514738-01798e348b17?w=300&q=60" alt=""><div class="cap">พรีวิว 9:16</div></div>
       <div class="preview-thumb"><img src="https://images.unsplash.com/photo-1584622781564-1d987f7333c1?w=300&q=60" alt=""><div class="cap">พรีวิว 9:16</div></div>
     </div>
+
+    <!-- 🆕 สร้างครบจบในหน้าเว็บ -->
+    <div class="loop-box" style="margin-top:16px;border-color:var(--acc);">
+      <h3 style="color:var(--acc);">🎬 สร้างคลิปจบในหน้านี้เลย (ไม่ต้องแตะ Google Sheet)</h3>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn btn-ai" id="btnGenImages">🎨 สร้างภาพทุกซีนด้วย AI</button>
+        <label class="btn btn-ghost" style="cursor:pointer;">📤 อัปโหลดคลิปวีดีโอจริง
+          <input type="file" id="fileUpload" accept="video/*,image/*" style="display:none;">
+        </label>
+      </div>
+      <div class="thumbs" id="aiImages"></div>
+      <div style="font-size:12px;color:var(--sub);margin-top:8px;" id="mediaStatus">ยังไม่มีไฟล์ — สร้างภาพด้วย AI หรืออัปโหลดคลิปของคุณ</div>
+    </div>
   </div>
 
   <!-- STEP 6: POST SETTINGS -->
@@ -378,7 +391,8 @@
     </div>
     <div class="row">
       <button class="btn btn-ghost">💾 บันทึกแบบร่าง</button>
-      <button class="btn btn-start" id="btnStart">🚀 เริ่มสร้าง</button>
+      <button class="btn btn-start" id="btnPostNow" style="background:linear-gradient(90deg,var(--acc),#5a8bff);box-shadow:0 6px 20px rgba(124,92,255,.35);">🚀 โพสต์เลยวันนี้ (ทุกเพจ)</button>
+      <button class="btn btn-start" id="btnStart">🚀 เริ่มสร้าง (รออนุมัติทาง Telegram)</button>
     </div>
   </div>
 
@@ -514,6 +528,78 @@ document.getElementById('btnStart').addEventListener('click', () => {
 });
 
 loadProducts();
+
+// ===== โหมดครบวงจรในหน้าเว็บ =====
+let uploadedMediaUrl = null;
+
+// สร้างภาพทุกซีนด้วย AI
+document.getElementById('btnGenImages').addEventListener('click', () => {
+  const box = document.getElementById('aiImages');
+  const status = document.getElementById('mediaStatus');
+  if (!currentStory || !currentStory.scenes) {
+    status.textContent = '⚠️ กด "ให้ AI สร้างเรื่อง" ก่อน เพื่อให้มีคำบรรยายภาพแต่ละซีน';
+    return;
+  }
+  if (!IS_GAS) { status.textContent = '(โหมดตัวอย่าง — Deploy เป็น Web App เพื่อสร้างภาพจริง)'; return; }
+
+  box.innerHTML = '';
+  status.textContent = '⏳ กำลังสร้างภาพ ' + currentStory.scenes.length + ' ซีน (ใช้เวลา ~30-60 วินาที)...';
+  let done = 0;
+  currentStory.scenes.forEach((sc, i) => {
+    google.script.run
+      .withSuccessHandler(res => {
+        done++;
+        box.insertAdjacentHTML('beforeend',
+          '<div class="preview-thumb"><img src="' + res.url + '"><div class="cap">ซีน ' + (i + 1) + '</div></div>');
+        uploadedMediaUrl = res.url; // ใช้ภาพล่าสุดเป็นมีเดีย (สำหรับโพสต์รูป)
+        status.textContent = '✅ สร้างภาพแล้ว ' + done + '/' + currentStory.scenes.length + ' ซีน';
+      })
+      .withFailureHandler(err => { status.textContent = '❌ ซีน ' + (i + 1) + ': ' + err.message; })
+      .generateSceneImage(sc.image || sc.title || 'product scene ' + (i + 1));
+  });
+});
+
+// อัปโหลดไฟล์วีดีโอจริง
+document.getElementById('fileUpload').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('mediaStatus');
+  if (!IS_GAS) { status.textContent = '(โหมดตัวอย่าง — Deploy เพื่ออัปโหลดจริง)'; return; }
+  if (file.size > 45 * 1024 * 1024) { status.textContent = '❌ ไฟล์ใหญ่เกิน 45MB (ขีดจำกัด GAS)'; return; }
+
+  status.textContent = '⏳ กำลังอัปโหลด ' + file.name + ' (' + Math.round(file.size / 1024 / 1024) + 'MB)...';
+  const reader = new FileReader();
+  reader.onload = () => {
+    const b64 = reader.result.split(',')[1];
+    google.script.run
+      .withSuccessHandler(res => {
+        uploadedMediaUrl = res.url;
+        status.textContent = '✅ อัปโหลดสำเร็จ: ' + file.name + ' — พร้อมโพสต์แล้ว';
+      })
+      .withFailureHandler(err => { status.textContent = '❌ อัปโหลดไม่สำเร็จ: ' + err.message; })
+      .uploadMediaFile(b64, file.type, file.name);
+  };
+  reader.readAsDataURL(file);
+});
+
+// โพสต์ทันทีทุกเพจ (ไม่ต้องอนุมัติ ไม่ต้องแตะ Sheet)
+document.getElementById('btnPostNow').addEventListener('click', () => {
+  const payload = Object.assign(collectPayload(), {
+    caption: document.getElementById('caption').value,
+    mediaUrl: uploadedMediaUrl,
+    mimeType: uploadedMediaUrl && uploadedMediaUrl.indexOf('.png') > -1 ? 'image/png' : 'video/mp4'
+  });
+  if (!IS_GAS) { alert('โหมดตัวอย่าง — Deploy เป็น Web App เพื่อโพสต์จริง'); return; }
+  if (!confirm('โพสต์ขึ้นทุกเพจ Facebook เลยตอนนี้?')) return;
+
+  google.script.run
+    .withSuccessHandler(res => {
+      if (res.ok) alert('🎉 โพสต์สำเร็จ!\n\n' + res.links.join('\n') + (res.errors && res.errors.length ? '\n\n⚠️ ' + res.errors.join('\n') : ''));
+      else alert('❌ ' + res.error);
+    })
+    .withFailureHandler(err => alert('❌ ' + err.message))
+    .postNow(payload);
+});
 </script>
 </body>
 </html>
