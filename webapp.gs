@@ -407,3 +407,81 @@ function callGemini(prompt) {
   }
   throw new Error('Gemini ตอบไม่สำเร็จทุกโมเดล: ' + String(lastError).substring(0, 150));
 }
+
+// ============================================================
+// โหมดครบวงจรในหน้าเว็บ: สร้างภาพ AI + อัปโหลดไฟล์ + โพสต์ทันที
+// ============================================================
+
+// สร้างภาพประกอบซีนด้วย AI → บันทึก Drive → คืนลิงก์สาธารณะ
+function generateSceneImage(imagePrompt) {
+  const payload = {
+    contents: [{ parts: [{ text: 'Create a vertical 9:16 cinematic illustration for a short product video. Style: colorful 3D animation like Pixar. Scene: ' + imagePrompt + '. No text in image.' }] }],
+    generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+  };
+  const res = UrlFetchApp.fetch(
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image:generateContent?key=' + CONFIG.GEMINI_API_KEY,
+    { method: 'post', contentType: 'application/json', payload: JSON.stringify(payload), muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) throw new Error('สร้างภาพไม่สำเร็จ: ' + res.getContentText().substring(0, 150));
+  const parts = JSON.parse(res.getContentText()).candidates[0].content.parts;
+  const imgPart = (parts || []).find(function (p) { return p.inlineData || p.inline_data; });
+  if (!imgPart) throw new Error('AI ไม่ได้ส่งภาพกลับมา ลองกดใหม่');
+  const inline = imgPart.inlineData || imgPart.inline_data;
+  const blob = Utilities.newBlob(Utilities.base64Decode(inline.data), inline.mimeType || 'image/png');
+  return saveToDrive(blob, 'scene_' + Date.now() + '.png');
+}
+
+// อัปโหลดไฟล์ (วีดีโอ/รูป) จากหน้าเว็บ → Drive → ลิงก์สาธารณะ
+function uploadMediaFile(base64Data, mimeType, fileName) {
+  const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType, fileName || ('upload_' + Date.now()));
+  return saveToDrive(blob, fileName || ('upload_' + Date.now() + '.mp4'));
+}
+
+function saveToDrive(blob, name) {
+  let folder;
+  const it = DriveApp.getFoldersByName('VideoCreator Media');
+  folder = it.hasNext() ? it.next() : DriveApp.createFolder('VideoCreator Media');
+  const file = folder.createFile(blob);
+  file.setName(name);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return { ok: true, url: 'https://drive.google.com/uc?export=download&id=' + file.getId(), fileId: file.getId() };
+}
+
+// โพสต์ทันทีจากหน้าเว็บ (ระบบบันทึก Sheet เอง ผู้ใช้ไม่ต้องแตะ)
+function postNow(payload) {
+  const p = payload || {};
+  if (!p.mediaUrl) return { ok: false, error: 'ยังไม่มีไฟล์วีดีโอ — กด "อัปโหลดคลิป" หรือ "สร้างภาพทุกซีน" ก่อน' };
+
+  const sheet = getSheet();
+  const rowNum = sheet.getLastRow() + 1;
+  sheet.getRange(rowNum, CONFIG.COL.PRODUCT_ID).setValue(p.productId || ('DIRECT-' + Date.now()));
+  sheet.getRange(rowNum, CONFIG.COL.PRODUCT_NAME).setValue(p.productName || '');
+  sheet.getRange(rowNum, CONFIG.COL.MEDIA_URL).setValue(p.mediaUrl);
+  sheet.getRange(rowNum, CONFIG.COL.MEDIA_TYPE).setValue(p.mimeType && p.mimeType.indexOf('image') === 0 ? 'IMAGE' : 'REEL');
+  sheet.getRange(rowNum, CONFIG.COL.AFFILIATE_LINK).setValue(p.affiliateLink || '');
+  sheet.getRange(rowNum, CONFIG.COL.AI_CAPTION).setValue(p.caption || '');
+  sheet.getRange(rowNum, CONFIG.COL.STATUS).setValue('POSTING');
+
+  try {
+    const pages = _fbPages();
+    if (!pages.length) throw new Error('ยังไม่ได้ใส่ FB_PAGE_TOKEN ใน Script Properties');
+    const results = [];
+    const errors = [];
+    pages.forEach(function (pg) {
+      try {
+        const pid = _postVideoToPage(pg, p.caption || '', p.mediaUrl, p.affiliateLink || '');
+        results.push('📘 https://facebook.com/' + pid);
+      } catch (err) { errors.push('เพจ ' + pg.id + ': ' + err.message); }
+    });
+    if (!results.length) throw new Error(errors.join(' | ') || 'โพสต์ไม่สำเร็จ');
+
+    sheet.getRange(rowNum, CONFIG.COL.FB_POST_ID).setValue(results.join(', '));
+    sheet.getRange(rowNum, CONFIG.COL.POSTED_AT).setValue(new Date().toISOString());
+    sheet.getRange(rowNum, CONFIG.COL.STATUS).setValue('POSTED');
+    try { notifyAdmin('🚀 โพสต์ทันทีสำเร็จ\n📦 ' + (p.productName || '') + '\n' + results.join('\n')); } catch (e) {}
+    return { ok: true, row: rowNum, links: results, errors: errors };
+  } catch (e) {
+    sheet.getRange(rowNum, CONFIG.COL.STATUS).setValue('ERROR');
+    sheet.getRange(rowNum, CONFIG.COL.ERROR_LOG).setValue(e.message);
+    return { ok: false, error: e.message };
+  }
+}
